@@ -39,6 +39,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _msg = MutableStateFlow<String?>(null)
     val msg: StateFlow<String?> = _msg.asStateFlow()
 
+    private val _tabReset = MutableStateFlow(0)
+    val tabReset: StateFlow<Int> = _tabReset.asStateFlow()
+
     private var regCal: ListenerRegistration? = null
     private var regTasks: ListenerRegistration? = null
 
@@ -51,6 +54,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toast(s: String?) { _msg.value = s }
     fun setDate(d: LocalDate) { _date.value = d }
+    /** 위젯에서 날짜를 눌러 들어왔을 때: 그 날짜의 일 보기로 */
+    fun openDay(d: LocalDate) { _date.value = d; _tabReset.value = _tabReset.value + 1 }
     fun refreshToday() { if (_date.value.isBefore(LocalDate.now().minusDays(400))) _date.value = LocalDate.now() }
 
     fun select(cid: String?) {
@@ -65,6 +70,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _tasks.value = Store.loadTasks(ctx, cid) // 먼저 기기 캐시를 보여 주고 서버가 오면 갱신
+        NabiWidget.refresh(ctx)
+        LockScreen.update(ctx)
         _status.value = "연결 중…"
         regCal = Repo.listenCal(cid) { name, groups, exists ->
             if (exists) {

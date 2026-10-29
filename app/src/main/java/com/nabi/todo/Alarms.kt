@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 const val ACT_ALARM = "com.nabi.todo.ALARM"
 const val ACT_NAG = "com.nabi.todo.NAG"
 const val ACT_TEST = "com.nabi.todo.TEST"
+const val ACT_MIDNIGHT = "com.nabi.todo.MIDNIGHT"
 const val ACT_DONE = "com.nabi.todo.DONE"
 const val ACT_SNOOZE = "com.nabi.todo.SNOOZE"
 const val CH_ALARM = "nabi_alarm"
@@ -34,6 +35,7 @@ const val CH_UPDATE = "nabi_update"
 const val CH_NUDGE = "nabi_nudge"
 const val ID_UPDATE = 7_000_010
 const val NAG_CODE = 7_000_001
+const val MIDNIGHT_CODE = 7_000_030
 const val SNOOZE_MINUTES = 10
 
 object Scheduler {
@@ -132,6 +134,17 @@ object Scheduler {
         }
         Store.setScheduled(ctx, wanted)
         scheduleNag(ctx)
+        scheduleMidnight(ctx)
+        // 할 일이 바뀔 때마다 홈 위젯과 잠금 화면 알림도 같이 갱신
+        NabiWidget.refresh(ctx)
+        LockScreen.update(ctx)
+    }
+
+    /** 자정 직후에 날짜가 넘어간 것을 위젯·잠금 화면에 반영 */
+    fun scheduleMidnight(ctx: Context) {
+        val pi = pending(ctx, ACT_MIDNIGHT, MIDNIGHT_CODE)
+        val at = LocalDate.now().plusDays(1).atTime(0, 0, 5).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        setAt(ctx, at, pi)
     }
 
     fun scheduleNag(ctx: Context) {
@@ -193,6 +206,7 @@ class AlarmReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACT_ALARM -> onAlarm(ctx, intent)
             ACT_NAG -> onNag(ctx)
+            ACT_MIDNIGHT -> Scheduler.rescheduleAll(ctx)
             ACT_TEST -> {
                 val n = NotificationCompat.Builder(ctx, CH_ALARM)
                     .setSmallIcon(R.drawable.ic_notif)

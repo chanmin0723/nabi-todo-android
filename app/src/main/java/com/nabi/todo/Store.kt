@@ -60,6 +60,12 @@ object Store {
     fun lastNudgeSeen(ctx: Context, cid: String): Long = sp(ctx).getLong("lastNudge_$cid", 0L)
     fun setLastNudgeSeen(ctx: Context, cid: String, v: Long) = sp(ctx).edit().putLong("lastNudge_$cid", v).apply()
 
+    fun lockOn(ctx: Context): Boolean = sp(ctx).getBoolean("lockOn", false)
+    fun setLockOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("lockOn", v).apply()
+    /** 위젯이 보여 주는 달: 이번 달 기준 +- 개월 */
+    fun widgetMonth(ctx: Context): Int = sp(ctx).getInt("wMonth", 0)
+    fun setWidgetMonth(ctx: Context, v: Int) = sp(ctx).edit().putInt("wMonth", v).apply()
+
     fun loadTasks(ctx: Context, cid: String): List<Task> = tasksFromJson(sp(ctx).getString("tasks_$cid", null))
     fun saveTasks(ctx: Context, cid: String, tasks: List<Task>) =
         sp(ctx).edit().putString("tasks_$cid", tasksToJson(tasks)).apply()

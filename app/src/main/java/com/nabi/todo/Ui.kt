@@ -144,6 +144,7 @@ fun MainScreen(vm: MainViewModel) {
     val status by vm.status.collectAsStateWithLifecycle()
     val date by vm.date.collectAsStateWithLifecycle()
     val msg by vm.msg.collectAsStateWithLifecycle()
+    val tabReset by vm.tabReset.collectAsStateWithLifecycle()
 
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<EditTarget?>(null) }
@@ -153,6 +154,7 @@ fun MainScreen(vm: MainViewModel) {
     var nudgeTarget by remember { mutableStateOf<Task?>(null) }
     val snack = remember { SnackbarHostState() }
 
+    LaunchedEffect(tabReset) { tab = 0 }
     LaunchedEffect(msg) {
         val m = msg
         if (m != null) {
@@ -586,6 +588,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
     var updStatus by remember { mutableStateOf<String?>(null) }
     var updBusy by remember { mutableStateOf(false) }
     var myName by remember { mutableStateOf(Store.myName(ctx)) }
+    var lockOn by remember { mutableStateOf(Store.lockOn(ctx)) }
     val scope = rememberCoroutineScope()
 
     AlertDialog(
@@ -600,6 +603,19 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                     singleLine = true, placeholder = { Text("예: 찬민") }, modifier = Modifier.fillMaxWidth(),
                 )
                 Text("할 일 옆 '👉 콕'을 누르면 같은 달력을 쓰는 상대 폰에 알림이 가요. 할 일 하나당 하루에 한 번만 보낼 수 있어요.", fontSize = 12.sp)
+                HorizontalDivider()
+                Text("잠금 화면에 오늘 할 일", fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = lockOn, onCheckedChange = {
+                        lockOn = it; Store.setLockOn(ctx, it); LockScreen.update(ctx)
+                    })
+                    Spacer(Modifier.width(10.dp))
+                    Text(if (lockOn) "켜짐" else "꺼짐")
+                }
+                Text("오늘 남은 할 일을 알림으로 계속 띄워 두고, 잠금 화면에서도 보여요. 제목이 가려지면 폰 설정 → 알림 → 잠금 화면 알림을 '모든 내용 표시'로 바꿔 주세요. 보고 있는 달력(위쪽 이름)의 할 일이에요.", fontSize = 12.sp)
+                HorizontalDivider()
+                Text("홈 화면 달력 위젯", fontWeight = FontWeight.Bold)
+                Text("홈 화면 빈 곳을 길게 누르기 → 위젯 → '나비 할 일 달력'을 추가하세요. 날짜를 누르면 그날 할 일이 열리고, ‹ › 로 달을 넘길 수 있어요.", fontSize = 12.sp)
                 HorizontalDivider()
                 Text("못 끝낸 일 알림", fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
