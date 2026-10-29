@@ -19,7 +19,7 @@ import java.time.YearMonth
 const val ACT_W_PREV = "com.nabi.todo.W_PREV"
 const val ACT_W_NEXT = "com.nabi.todo.W_NEXT"
 const val ACT_W_TODAY = "com.nabi.todo.W_TODAY"
-const val CH_LOCK = "nabi_lock"
+const val CH_LOCK = "nabi_lock2" // 중요도를 바꾸려면 새 채널 id가 필요
 
 private fun activeTasks(ctx: Context): Pair<CalRef?, List<Task>> {
     val cals = Store.cals(ctx)
@@ -34,8 +34,10 @@ object LockScreen {
 
     fun ensureChannel(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        val ch = NotificationChannel(CH_LOCK, "잠금 화면 오늘 할 일", NotificationManager.IMPORTANCE_LOW).apply {
+        val ch = NotificationChannel(CH_LOCK, "잠금 화면 오늘 할 일", NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = "잠금 화면에 오늘 할 일을 계속 보여 줘요"
+            setSound(null, null) // 소리·진동 없이 조용히
+            enableVibration(false)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             setShowBadge(false)
         }
@@ -71,7 +73,8 @@ object LockScreen {
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setSilent(true)
             .setContentIntent(Notifier.openApp(ctx))
         if (cal != null) b.setSubText(cal.name)
         Notifier.show(ctx, ID, b.build())
