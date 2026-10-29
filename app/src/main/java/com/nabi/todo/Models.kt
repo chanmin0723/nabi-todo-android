@@ -9,6 +9,8 @@ import java.time.temporal.ChronoUnit
 /** 웹 앱(index.html)의 할 일 문서와 같은 구조입니다. calendars/{cid}/tasks/{id} */
 data class Sub(val id: String, val t: String)
 
+data class Nudge(val from: String, val name: String, val at: Long)
+
 data class Occ(val done: Boolean, val subs: Map<String, Boolean>)
 
 data class Task(
@@ -27,6 +29,7 @@ data class Task(
     val state: Map<String, Occ>, // 날짜별(반복) 또는 "once" 완료 상태
     val order: Double,
     val created: Long,
+    val nudges: Map<String, Nudge> = emptyMap(), // 날짜 -> 보낸 알림(하루 한 번)
 )
 
 data class Group(val id: String, val name: String, val color: Long)
@@ -127,6 +130,14 @@ fun taskFromMap(id: String, m: Map<String, Any?>): Task {
             state[ks] = Occ(vm["done"] == true, sm)
         }
     }
+    val nudges = HashMap<String, Nudge>()
+    (m["nudges"] as? Map<*, *>)?.forEach { (k, v) ->
+        val ks = k as? String
+        val vm = v as? Map<*, *>
+        if (ks != null && vm != null) {
+            nudges[ks] = Nudge((vm["from"] as? String) ?: "", (vm["name"] as? String) ?: "", numOf(vm["at"], 0.0).toLong())
+        }
+    }
     return Task(
         id = id,
         title = (m["title"] as? String) ?: "",
@@ -143,6 +154,7 @@ fun taskFromMap(id: String, m: Map<String, Any?>): Task {
         state = state,
         order = numOf(m["order"], 0.0),
         created = numOf(m["created"], 0.0).toLong(),
+        nudges = nudges,
     )
 }
 

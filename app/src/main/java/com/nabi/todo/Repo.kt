@@ -7,6 +7,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.Transaction
 import java.util.concurrent.TimeUnit
 
 /** 웹과 같은 Firestore 구조: calendars/{cid} 와 calendars/{cid}/tasks/{taskId} */
@@ -61,6 +62,38 @@ object Repo {
         taskCol(cid).document(taskId).set(data, SetOptions.merge())
 
     fun delete(cid: String, taskId: String): GmsTask<Void> = taskCol(cid).document(taskId).delete()
+
+    /**
+     * 콕 찌르기: 할 일 문서의 nudges.{날짜}에 기록. 트랜잭션이라 같은 날 두 번은 들어가지 않는다.
+     * 달력 문서의 lastNudge도 함께 올려서, 상대 폰이 문서 하나만 읽고 새 알림 여부를 알 수 있다.
+     * @return true = 보냄, false = 오늘 이미 보낸 할 일
+     */
+    fun sendNudge(cid: String, taskId: String, day: String, rec: Map<String, Any?>): GmsTask<Boolean> {
+        val tref = taskCol(cid).document(taskId)
+        val cref = calDoc(cid)
+        return db.runTransaction(Transaction.Function<Boolean> { tr ->
+            val snap = tr.get(tref)
+            if (!snap.exists()) throw IllegalStateException("missing")
+            val cur = snap.get("nudges") as? Map<*, *>
+            if (cur != null && cur.containsKey(day)) {
+                false
+            } else {
+                tr.set(tref, mapOf("nudges" to mapOf(day to rec)), SetOptions.merge())
+                tr.set(cref, mapOf("lastNudge" to rec["at"]), SetOptions.merge())
+                true
+            }
+        })
+    }
+
+    /** 백그라운드 워커용(블로킹): 달력 문서 1개만 읽어 lastNudge 확인 */
+    fun lastNudgeBlocking(cid: String): Long? {
+        return try {
+            val snap = Tasks.await(calDoc(cid).get(Source.SERVER), 20, TimeUnit.SECONDS)
+            if (!snap.exists()) 0L else (snap.get("lastNudge") as? Number)?.toLong() ?: 0L
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     /** 백그라운드 워커용(블로킹). 서버 우선, 실패하면 캐시 */
     fun fetchTasksBlocking(cid: String): List<Task>? {

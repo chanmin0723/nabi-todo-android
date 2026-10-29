@@ -43,6 +43,23 @@ object Store {
     fun lastUpdateCheck(ctx: Context): Long = sp(ctx).getLong("updLast", 0L)
     fun setLastUpdateCheck(ctx: Context, v: Long) = sp(ctx).edit().putLong("updLast", v).apply()
 
+    /** 이 기기를 구분하는 값(내가 보낸 알림이 내 폰에 다시 뜨지 않게) */
+    fun deviceId(ctx: Context): String {
+        val p = sp(ctx)
+        var id = p.getString("deviceId", null)
+        if (id == null) {
+            id = newId() + newId()
+            p.edit().putString("deviceId", id).apply()
+        }
+        return id
+    }
+    fun myName(ctx: Context): String = sp(ctx).getString("myName", "") ?: ""
+    fun setMyName(ctx: Context, v: String) = sp(ctx).edit().putString("myName", v).apply()
+    fun nudgeSeen(ctx: Context): Set<String> = sp(ctx).getStringSet("nudgeSeen", emptySet()) ?: emptySet()
+    fun setNudgeSeen(ctx: Context, s: Set<String>) = sp(ctx).edit().putStringSet("nudgeSeen", HashSet(s)).apply()
+    fun lastNudgeSeen(ctx: Context, cid: String): Long = sp(ctx).getLong("lastNudge_$cid", 0L)
+    fun setLastNudgeSeen(ctx: Context, cid: String, v: Long) = sp(ctx).edit().putLong("lastNudge_$cid", v).apply()
+
     fun loadTasks(ctx: Context, cid: String): List<Task> = tasksFromJson(sp(ctx).getString("tasks_$cid", null))
     fun saveTasks(ctx: Context, cid: String, tasks: List<Task>) =
         sp(ctx).edit().putString("tasks_$cid", tasksToJson(tasks)).apply()

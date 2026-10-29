@@ -26,5 +26,9 @@ class NabiApp : Application() {
         val req = PeriodicWorkRequestBuilder<SyncWorker>(6, TimeUnit.HOURS).build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork("nabi-sync", ExistingPeriodicWorkPolicy.KEEP, req)
         Updater.schedule(this)
+        val nreq = PeriodicWorkRequestBuilder<NudgeWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork("nabi-nudge", ExistingPeriodicWorkPolicy.KEEP, nreq)
     }
 }

@@ -83,6 +83,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             _tasks.value = list
             Store.saveTasks(ctx, cid, list)
+            Nudges.processIncoming(ctx, cid, list)
             Scheduler.rescheduleAll(ctx)
             _status.value = if (fromCache) "오프라인 · 저장된 내용 표시 중" else "실시간 동기화"
         }, { code ->
@@ -156,6 +157,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (d.remind != orig.remind) p["remind"] = d.remind
         if (d.subs != orig.subs) p["subs"] = subsToList(d.subs)
         if (p.isNotEmpty()) write(cid, orig.id, p)
+    }
+
+    /** 이 할 일을 하라고 상대에게 알림 보내기(할 일당 하루 한 번) */
+    fun nudge(t: Task) {
+        val cid = _active.value ?: return
+        val day = LocalDate.now().toString()
+        if (t.nudges.containsKey(day)) { toast("오늘은 이미 보낸 할 일이에요."); return }
+        val rec = mapOf<String, Any?>(
+            "from" to Store.deviceId(ctx),
+            "name" to Store.myName(ctx).ifBlank { "친구" },
+            "at" to System.currentTimeMillis(),
+        )
+        Repo.sendNudge(cid, t.id, day, rec)
+            .addOnSuccessListener { sent ->
+                toast(if (sent) "'${t.title}' 알림을 보냈어요 🐾" else "오늘은 이미 보낸 할 일이에요. (하루에 한 번만 보낼 수 있어요)")
+            }
+            .addOnFailureListener { toast("보내지 못했어요. 인터넷 연결을 확인해 주세요.") }
     }
 
     fun toggle(t: Task, d: LocalDate) {

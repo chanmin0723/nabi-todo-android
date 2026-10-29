@@ -31,6 +31,7 @@ const val ACT_SNOOZE = "com.nabi.todo.SNOOZE"
 const val CH_ALARM = "nabi_alarm"
 const val CH_NAG = "nabi_nag"
 const val CH_UPDATE = "nabi_update"
+const val CH_NUDGE = "nabi_nudge"
 const val ID_UPDATE = 7_000_010
 const val NAG_CODE = 7_000_001
 const val SNOOZE_MINUTES = 10
@@ -56,6 +57,10 @@ object Scheduler {
         val upd = NotificationChannel(CH_UPDATE, "앱 업데이트", NotificationManager.IMPORTANCE_LOW).apply {
             description = "새 버전 설치 안내"
         }
+        val nudge = NotificationChannel(CH_NUDGE, "친구가 보낸 콕", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "친구가 할 일을 하라고 보낸 알림"
+        }
+        nm.createNotificationChannel(nudge)
         nm.createNotificationChannel(alarm)
         nm.createNotificationChannel(nag)
         nm.createNotificationChannel(upd)

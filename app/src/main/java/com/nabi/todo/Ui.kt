@@ -150,6 +150,7 @@ fun MainScreen(vm: MainViewModel) {
     var showJoin by remember { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var nudgeTarget by remember { mutableStateOf<Task?>(null) }
     val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(msg) {
@@ -206,6 +207,7 @@ fun MainScreen(vm: MainViewModel) {
                         onToggle = { t, d -> vm.toggle(t, d) },
                         onSub = { t, d, sid -> vm.toggleSub(t, d, sid) },
                         onEdit = { t, d -> editing = EditTarget(t, d) },
+                        onNudge = { t -> nudgeTarget = t },
                     )
                 } else {
                     LaterView(
@@ -227,6 +229,16 @@ fun MainScreen(vm: MainViewModel) {
             onSkip = { e.task?.let { vm.skipDay(it, e.date) }; editing = null },
             onDismiss = { editing = null },
             laterMode = tab == 1,
+        )
+    }
+    val nt = nudgeTarget
+    if (nt != null) {
+        AlertDialog(
+            onDismissRequest = { nudgeTarget = null },
+            title = { Text("콕 찌를까요?", fontWeight = FontWeight.ExtraBold) },
+            text = { Text("'${nt.title}' 하라고 이 달력을 쓰는 상대 폰에 알림을 보내요.\n할 일 하나당 하루에 한 번만 보낼 수 있어요.") },
+            confirmButton = { TextButton(onClick = { vm.nudge(nt); nudgeTarget = null }) { Text("보내기", fontWeight = FontWeight.ExtraBold) } },
+            dismissButton = { TextButton(onClick = { nudgeTarget = null }) { Text("취소") } },
         )
     }
     if (showJoin) JoinDialog(onDismiss = { showJoin = false }, onJoin = { raw, done -> vm.join(raw) { ok -> done(ok); if (ok) showJoin = false } })
@@ -288,6 +300,7 @@ private fun DayView(
     onToggle: (Task, LocalDate) -> Unit,
     onSub: (Task, LocalDate, String) -> Unit,
     onEdit: (Task, LocalDate) -> Unit,
+    onNudge: (Task) -> Unit,
 ) {
     val ctx = LocalContext.current
     val today = LocalDate.now()
@@ -321,12 +334,14 @@ private fun DayView(
             item { Text("기한 지난 일", fontWeight = FontWeight.ExtraBold, color = Color(0xFFD9534F), modifier = Modifier.padding(top = 8.dp)) }
             items(overdue, key = { "o:" + it.id }) { t ->
                 val d = LocalDate.parse(t.date!!)
-                TaskRow(t, d, groups, showDate = true, onToggle = { onToggle(t, d) }, onSub = { sid -> onSub(t, d, sid) }, onClick = { onEdit(t, d) })
+                TaskRow(t, d, groups, showDate = true, onToggle = { onToggle(t, d) }, onSub = { sid -> onSub(t, d, sid) }, onClick = { onEdit(t, d) },
+                    nudgeable = true, onNudge = { onNudge(t) })
             }
             item { Text("오늘", fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp)) }
         }
         items(dayTasks, key = { "d:" + it.id }) { t ->
-            TaskRow(t, date, groups, showDate = false, onToggle = { onToggle(t, date) }, onSub = { sid -> onSub(t, date, sid) }, onClick = { onEdit(t, date) })
+            TaskRow(t, date, groups, showDate = false, onToggle = { onToggle(t, date) }, onSub = { sid -> onSub(t, date, sid) }, onClick = { onEdit(t, date) },
+                nudgeable = date == today, onNudge = { onNudge(t) })
         }
     }
 }
@@ -349,8 +364,10 @@ private fun LaterView(tasks: List<Task>, groups: List<Group>, onToggle: (Task) -
 private fun TaskRow(
     t: Task, d: LocalDate, groups: List<Group>, showDate: Boolean,
     onToggle: () -> Unit, onSub: (String) -> Unit, onClick: () -> Unit,
+    nudgeable: Boolean = false, onNudge: () -> Unit = {},
 ) {
     val done = t.isDone(d)
+    val nudgedToday = t.nudges.containsKey(LocalDate.now().toString())
     val g = groups.find { it.id == t.groupId } ?: groups.firstOrNull()
     Card(
         onClick = onClick,
@@ -389,6 +406,13 @@ private fun TaskRow(
                         Text(s.t, fontSize = 14.sp)
                     }
                 }
+            }
+            if (nudgeable && !done) {
+                TextButton(
+                    onClick = onNudge,
+                    enabled = !nudgedToday,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                ) { Text(if (nudgedToday) "보냄 ✓" else "👉 콕", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -561,6 +585,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
     var updMode by remember { mutableIntStateOf(Store.updateMode(ctx)) }
     var updStatus by remember { mutableStateOf<String?>(null) }
     var updBusy by remember { mutableStateOf(false) }
+    var myName by remember { mutableStateOf(Store.myName(ctx)) }
     val scope = rememberCoroutineScope()
 
     AlertDialog(
@@ -568,6 +593,14 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
         title = { Text("설정", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("콕 알림에 표시할 내 이름", fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = myName,
+                    onValueChange = { myName = it; Store.setMyName(ctx, it.trim()) },
+                    singleLine = true, placeholder = { Text("예: 찬민") }, modifier = Modifier.fillMaxWidth(),
+                )
+                Text("할 일 옆 '👉 콕'을 누르면 같은 달력을 쓰는 상대 폰에 알림이 가요. 할 일 하나당 하루에 한 번만 보낼 수 있어요.", fontSize = 12.sp)
+                HorizontalDivider()
                 Text("못 끝낸 일 알림", fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = nagOn, onCheckedChange = {
