@@ -590,6 +590,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
     var updMode by remember { mutableIntStateOf(Store.updateMode(ctx)) }
     var updStatus by remember { mutableStateOf<String?>(null) }
     var updBusy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     var myName by remember { mutableStateOf(Store.myName(ctx)) }
     var lockOn by remember { mutableStateOf(Store.lockOn(ctx)) }
     var lockWp by remember { mutableStateOf(Store.lockWpOn(ctx)) }
@@ -603,7 +604,6 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
             }
         }
     }
-    val scope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = onDismiss,
