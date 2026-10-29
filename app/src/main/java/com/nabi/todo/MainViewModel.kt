@@ -71,7 +71,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         _tasks.value = Store.loadTasks(ctx, cid) // 먼저 기기 캐시를 보여 주고 서버가 오면 갱신
         NabiWidget.refresh(ctx)
+        NabiWeekWidget.refresh(ctx)
         LockScreen.update(ctx)
+        LockWallpaper.update(ctx)
         _status.value = "연결 중…"
         regCal = Repo.listenCal(cid) { name, groups, exists ->
             if (exists) {

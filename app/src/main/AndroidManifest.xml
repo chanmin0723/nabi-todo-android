@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
@@ -30,6 +31,14 @@
         </activity>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".NabiWeekWidget" android:exported="true" android:label="나비 할 일 주간">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/nabi_week_widget_info" />
+        </receiver>
         <receiver android:name=".NabiWidget" android:exported="true" android:label="나비 할 일 달력">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

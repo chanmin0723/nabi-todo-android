@@ -21,7 +21,7 @@ const val ACT_W_NEXT = "com.nabi.todo.W_NEXT"
 const val ACT_W_TODAY = "com.nabi.todo.W_TODAY"
 const val CH_LOCK = "nabi_lock2" // 중요도를 바꾸려면 새 채널 id가 필요
 
-private fun activeTasks(ctx: Context): Pair<CalRef?, List<Task>> {
+internal fun activeTasks(ctx: Context): Pair<CalRef?, List<Task>> {
     val cals = Store.cals(ctx)
     val a = Store.active(ctx)
     val cal = cals.find { it.cid == a } ?: cals.firstOrNull()

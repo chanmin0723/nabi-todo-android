@@ -60,6 +60,13 @@ object Store {
     fun lastNudgeSeen(ctx: Context, cid: String): Long = sp(ctx).getLong("lastNudge_$cid", 0L)
     fun setLastNudgeSeen(ctx: Context, cid: String, v: Long) = sp(ctx).edit().putLong("lastNudge_$cid", v).apply()
 
+    fun lockWpOn(ctx: Context): Boolean = sp(ctx).getBoolean("lockWp", false)
+    fun setLockWpOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("lockWp", v).apply()
+    fun lockWpHash(ctx: Context): Int = sp(ctx).getInt("lockWpHash", 0)
+    fun setLockWpHash(ctx: Context, v: Int) = sp(ctx).edit().putInt("lockWpHash", v).apply()
+    fun widgetWeek(ctx: Context): Int = sp(ctx).getInt("wWeek", 0)
+    fun setWidgetWeek(ctx: Context, v: Int) = sp(ctx).edit().putInt("wWeek", v).apply()
+
     fun lockOn(ctx: Context): Boolean = sp(ctx).getBoolean("lockOn", false)
     fun setLockOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("lockOn", v).apply()
     /** 위젯이 보여 주는 달: 이번 달 기준 +- 개월 */

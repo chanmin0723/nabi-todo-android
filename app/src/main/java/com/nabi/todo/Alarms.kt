@@ -137,7 +137,9 @@ object Scheduler {
         scheduleMidnight(ctx)
         // 할 일이 바뀔 때마다 홈 위젯과 잠금 화면 알림도 같이 갱신
         NabiWidget.refresh(ctx)
+        NabiWeekWidget.refresh(ctx)
         LockScreen.update(ctx)
+        LockWallpaper.update(ctx)
     }
 
     /** 자정 직후에 날짜가 넘어간 것을 위젯·잠금 화면에 반영 */
