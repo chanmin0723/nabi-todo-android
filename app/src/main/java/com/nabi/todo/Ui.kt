@@ -677,6 +677,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                 }) { Text("알림 설정 열기") }
                 OutlinedButton(onClick = { Scheduler.testIn(ctx, 5) }) { Text("5초 뒤 테스트 알람") }
                 Text("알람이 안 울리면 배터리 설정에서 이 앱을 '제한 없음'으로 두세요.", fontSize = 12.sp)
+                if (Updater.ENABLED) {
                 HorizontalDivider()
                 Text("🔄 자동 업데이트  (지금 v${Updater.currentName()})", fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -705,6 +706,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                     },
                 ) { Text("지금 업데이트 확인") }
                 updStatus?.let { Text(it, fontSize = 12.sp) }
+                }
                 if (activeCal != null) {
                     HorizontalDivider()
                     Text("현재 달력: ${activeCal.name}", fontWeight = FontWeight.Bold)

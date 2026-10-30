@@ -37,6 +37,8 @@ object Updater {
     private const val API = "https://api.github.com/repos/$REPO/releases/latest"
     private const val WORK = "nabi_auto_update"
 
+    const val ENABLED = true
+
     const val MODE_OFF = 0
     const val MODE_WIFI = 1
     const val MODE_ANY = 2

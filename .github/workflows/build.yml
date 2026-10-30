@@ -18,15 +18,15 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
       - name: Build debug APK
-        run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+        run: chmod +x gradlew && ./gradlew assembleDirectDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: nabi-todo-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/direct/debug/*.apk
       - name: Publish release (no login needed to download)
         if: github.ref == 'refs/heads/main'
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk nabi-todo.apk
+          cp app/build/outputs/apk/direct/debug/app-direct-debug.apk nabi-todo.apk
           TAG="v1.0.${{ github.run_number }}"
           gh release create "$TAG" nabi-todo.apk \
             --title "나비 할 일 $TAG" \

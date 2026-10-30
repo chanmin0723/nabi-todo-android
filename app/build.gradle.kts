@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.nabi.todo"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.nabi.todo"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         // CI 실행 번호로 버전을 올려 업데이트 설치가 되도록 (로컬 빌드는 1)
         val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionCode = run
@@ -35,8 +35,31 @@ android {
         }
     }
 
+    // direct: GitHub에서 받아 쓰는 버전(자동 업데이트 포함)
+    // store : Google Play용 버전(자동 업데이트·APK 설치 권한 없음)
+    flavorDimensions += "dist"
+    productFlavors {
+        create("direct") { dimension = "dist" }
+        create("store") { dimension = "dist" }
+    }
+
+    // Play 업로드 키: CI가 환경변수로 넘겨 줄 때만 사용(키 파일은 저장소에 두지 않음)
+    signingConfigs {
+        if (System.getenv("STORE_KEYSTORE_FILE") != null) {
+            create("upload") {
+                storeFile = file(System.getenv("STORE_KEYSTORE_FILE"))
+                storePassword = System.getenv("STORE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("STORE_KEY_ALIAS")
+                keyPassword = System.getenv("STORE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (System.getenv("STORE_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("upload")
+            }
             isMinifyEnabled = false
         }
     }
