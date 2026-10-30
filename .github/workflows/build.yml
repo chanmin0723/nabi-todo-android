@@ -25,7 +25,7 @@ jobs:
           ./gradlew bundleStoreRelease --stacktrace > store.log 2>&1
           rc=$?
           if [ $rc -ne 0 ]; then
-            grep -E "^e: |error:|What went wrong|Execution failed|Caused by|Lint|lint" store.log | head -20 | while IFS= read -r l; do echo "::error::$(echo "$l" | cut -c1-400)"; done
+            { grep -B1 -A4 -E "Error:|Fatal:" store.log; cat app/build/reports/lint-results-storeRelease.txt 2>/dev/null | head -40; } | head -40 | while IFS= read -r l; do echo "::error::$(echo "$l" | cut -c1-400)"; done
           fi
           exit $rc
       - uses: actions/upload-artifact@v4
