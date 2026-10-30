@@ -20,7 +20,14 @@ jobs:
       - name: Build debug APK
         run: chmod +x gradlew && ./gradlew assembleDirectDebug --stacktrace
       - name: Verify Play (store) flavor builds
-        run: ./gradlew bundleStoreRelease --stacktrace
+        run: |
+          set +e
+          ./gradlew bundleStoreRelease --stacktrace > store.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            grep -E "^e: |error:|What went wrong|Execution failed|Caused by|Lint|lint" store.log | head -20 | while IFS= read -r l; do echo "::error::$(echo "$l" | cut -c1-400)"; done
+          fi
+          exit $rc
       - uses: actions/upload-artifact@v4
         with:
           name: nabi-todo-debug-apk
