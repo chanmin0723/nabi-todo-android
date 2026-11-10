@@ -292,7 +292,11 @@ private fun EmptyState(onJoin: () -> Unit, onCreate: () -> Unit) {
         Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("🐈", fontSize = 56.sp)
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.nabi_cat),
+            contentDescription = "나비",
+            modifier = Modifier.width(220.dp),
+        )
         Spacer(Modifier.height(12.dp))
         Text("웹에서 쓰던 달력에 참여하거나\n새 달력을 만들어 보세요", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(Modifier.height(20.dp))
