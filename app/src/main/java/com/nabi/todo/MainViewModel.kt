@@ -73,7 +73,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         NabiWidget.refresh(ctx)
         NabiWeekWidget.refresh(ctx)
         LockScreen.update(ctx)
-        LockWallpaper.update(ctx)
         _status.value = "연결 중…"
         regCal = Repo.listenCal(cid) { name, groups, exists ->
             if (exists) {

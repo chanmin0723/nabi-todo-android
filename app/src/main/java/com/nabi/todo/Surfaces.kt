@@ -28,15 +28,17 @@ internal fun activeTasks(ctx: Context): Pair<CalRef?, List<Task>> {
     return cal to (cal?.let { Store.loadTasks(ctx, it.cid) } ?: emptyList())
 }
 
-/** 잠금 화면에 오늘 할 일을 보여 주는 상시 알림 (설정에서 켜고 끔) */
+/** 잠금 화면 알림: 오늘 할 일 + (따로) 날짜 없는 "언젠가 할 일". 설정에서 끌 수 있고 기본은 켜짐 */
 object LockScreen {
     const val ID = 7_000_020
+    const val ID_LATER = 7_000_021
+    private const val MAX_LINES = 6
 
     fun ensureChannel(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        val ch = NotificationChannel(CH_LOCK, "잠금 화면 오늘 할 일", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "잠금 화면에 오늘 할 일을 계속 보여 줘요"
-            setSound(null, null) // 소리·진동 없이 조용히
+        val ch = NotificationChannel(CH_LOCK, "잠금 화면 할 일", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = "잠금 화면에 오늘 할 일과 언젠가 할 일을 보여 줘요"
+            setSound(null, null)
             enableVibration(false)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             setShowBadge(false)
@@ -44,40 +46,57 @@ object LockScreen {
         nm.createNotificationChannel(ch)
     }
 
+    private fun mark(p: Int) = when { p >= 2 -> "🔴"; p == 1 -> "🟠"; else -> "🔵" }
+
+    private fun line(t: Task) = mark(t.priority) + " " + (if (t.time.isNotEmpty()) t.time + " " else "") + t.title
+
+    private fun build(ctx: Context, title: String, lines: List<String>, sub: String?, sortKey: String): Notification {
+        val style = NotificationCompat.InboxStyle()
+        lines.take(MAX_LINES).forEach { style.addLine(it) }
+        if (lines.size > MAX_LINES) style.addLine("… 외 ${lines.size - MAX_LINES}개")
+        val b = NotificationCompat.Builder(ctx, CH_LOCK)
+            .setSmallIcon(R.drawable.ic_notif)
+            .setContentTitle(title)
+            .setContentText(lines.firstOrNull() ?: "수고했어요")
+            .setStyle(style) // 알림을 아래로 당기면 펼쳐지고, 다시 당기면 접혀요
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setSortKey(sortKey)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setSilent(true)
+            .setContentIntent(Notifier.openApp(ctx))
+        if (sub != null) b.setSubText(sub)
+        return b.build()
+    }
+
     fun update(ctx: Context) {
         val nm = NotificationManagerCompat.from(ctx)
         if (!Store.lockOn(ctx)) {
-            nm.cancel(ID)
+            nm.cancel(ID); nm.cancel(ID_LATER)
             return
         }
         ensureChannel(ctx)
         val (cal, tasks) = activeTasks(ctx)
         val today = LocalDate.now()
+
         val list = tasksOnDay(tasks, today)
         if (list.isEmpty()) {
             nm.cancel(ID)
-            return
+        } else {
+            val undone = list.filter { !it.isDone(today) }
+            val title = if (undone.isEmpty()) "오늘 할 일을 모두 끝냈어요 🎉" else "오늘 할 일 ${undone.size}개 남음 (전체 ${list.size})"
+            Notifier.show(ctx, ID, build(ctx, title, undone.map { line(it) }, cal?.name, "a"))
         }
-        val undone = list.filter { !it.isDone(today) }
-        val title = if (undone.isEmpty()) "오늘 할 일을 모두 끝냈어요 🎉" else "오늘 할 일 ${undone.size}개 남음 (전체 ${list.size})"
-        val lines = undone.map { (if (it.time.isNotEmpty()) it.time + " " else "") + it.title }
-        val style = NotificationCompat.InboxStyle()
-        lines.take(7).forEach { style.addLine("☐ $it") }
-        if (lines.size > 7) style.addLine("… 외 ${lines.size - 7}개")
-        val b = NotificationCompat.Builder(ctx, CH_LOCK)
-            .setSmallIcon(R.drawable.ic_notif)
-            .setContentTitle(title)
-            .setContentText(lines.firstOrNull() ?: "수고했어요")
-            .setStyle(style)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setShowWhen(false)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setSilent(true)
-            .setContentIntent(Notifier.openApp(ctx))
-        if (cal != null) b.setSubText(cal.name)
-        Notifier.show(ctx, ID, b.build())
+
+        val later = tasks.filter { it.date == null && !it.isDone(today) }
+            .sortedWith(compareByDescending<Task> { it.priority }.thenBy { it.order })
+        if (later.isEmpty()) {
+            nm.cancel(ID_LATER)
+        } else {
+            Notifier.show(ctx, ID_LATER, build(ctx, "언젠가 할 일 ${later.size}개", later.map { mark(it.priority) + " " + it.title }, null, "b"))
+        }
     }
 }
 

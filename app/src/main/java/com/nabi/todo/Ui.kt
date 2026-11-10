@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -93,6 +95,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 
 private val Ink = Color(0xFF2B2A4C)
 private val Orange = Color(0xFFF4A259)
+private fun prioColor(p: Int) = when { p >= 2 -> Color(0xFFD9534F); p == 1 -> Color(0xFFE8920F); else -> Color(0xFF5B84D6) }
+private fun prioName(p: Int) = when { p >= 2 -> "매우 중요"; p == 1 -> "중요"; else -> "보통" }
 
 @Composable
 fun NabiTheme(content: @Composable () -> Unit) {
@@ -379,16 +383,20 @@ private fun TaskRow(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
+        Row(Modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
+            Box(Modifier.width(6.dp).fillMaxHeight().background(if (done) Color(0xFFC9CAD8) else prioColor(t.priority)))
+            Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
             Checkbox(checked = done, onCheckedChange = { onToggle() })
             Column(Modifier.weight(1f).padding(top = 10.dp, end = 4.dp)) {
                 Text(
-                    (if (t.priority >= 2) "!! " else if (t.priority == 1) "! " else "") + t.title,
+                    t.title,
                     fontWeight = FontWeight.Bold, fontSize = 17.sp,
                     textDecoration = if (done) TextDecoration.LineThrough else null,
                     color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else Ink,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                    Text(prioName(t.priority), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (done) Color(0xFF9A9BB0) else prioColor(t.priority))
+                    Spacer(Modifier.width(10.dp))
                     if (g != null) {
                         Box(Modifier.size(10.dp).clip(CircleShape).background(Color(g.color)))
                         Spacer(Modifier.width(5.dp))
@@ -418,6 +426,7 @@ private fun TaskRow(
                     enabled = !nudgedToday,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
                 ) { Text(if (nudgedToday) "보냄 ✓" else "👉 콕", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+            }
             }
         }
     }
@@ -488,8 +497,8 @@ private fun EditDialog(
                 }
                 Text("중요도", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(0 to "보통", 1 to "중요 !", 2 to "매우 중요 !!").forEach { (v, n) ->
-                        FilterChip(selected = priority == v, onClick = { priority = v }, label = { Text(n) })
+                    listOf(0 to "보통", 1 to "중요", 2 to "매우 중요").forEach { (v, n) ->
+                        FilterChip(selected = priority == v, onClick = { priority = v }, label = { Text(n, color = prioColor(v), fontWeight = FontWeight.Bold) })
                     }
                 }
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("메모") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
@@ -593,18 +602,6 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
     val scope = rememberCoroutineScope()
     var myName by remember { mutableStateOf(Store.myName(ctx)) }
     var lockOn by remember { mutableStateOf(Store.lockOn(ctx)) }
-    var lockWp by remember { mutableStateOf(Store.lockWpOn(ctx)) }
-    var wpMsg by remember { mutableStateOf<String?>(null) }
-    val pickBg = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            scope.launch(Dispatchers.IO) {
-                val ok = LockWallpaper.saveBackground(ctx, uri)
-                if (ok) LockWallpaper.update(ctx, true)
-                wpMsg = if (ok) "배경 사진을 바꿨어요" else "사진을 불러오지 못했어요"
-            }
-        }
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("설정", fontWeight = FontWeight.ExtraBold) },
@@ -618,25 +615,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                 )
                 Text("할 일 옆 '👉 콕'을 누르면 같은 달력을 쓰는 상대 폰에 알림이 가요. 할 일 하나당 하루에 한 번만 보낼 수 있어요.", fontSize = 12.sp)
                 HorizontalDivider()
-                Text("잠금 화면 사진에 오늘 할 일", fontWeight = FontWeight.Bold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = lockWp, onCheckedChange = {
-                        lockWp = it; Store.setLockWpOn(ctx, it)
-                        if (it) { LockWallpaper.update(ctx, true); wpMsg = "잠금 화면 사진을 바꿨어요. 잠금 화면을 확인해 보세요." }
-                    })
-                    Spacer(Modifier.width(10.dp))
-                    Text(if (lockWp) "켜짐" else "꺼짐")
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { pickBg.launch("image/*") }) { Text("배경 사진 고르기", fontSize = 12.sp) }
-                    OutlinedButton(onClick = {
-                        LockWallpaper.clearBackground(ctx); LockWallpaper.update(ctx, true); wpMsg = "기본 배경으로 되돌렸어요"
-                    }) { Text("기본 배경", fontSize = 12.sp) }
-                }
-                wpMsg?.let { Text(it, fontSize = 12.sp) }
-                Text("켜면 잠금 화면 사진이 오늘 할 일이 그려진 그림으로 바뀌고, 할 일이 바뀔 때마다 새로 그려요. 끄면 더 이상 바꾸지 않아요(원래 사진은 폰의 배경화면 설정에서 다시 고르세요).", fontSize = 12.sp)
-                HorizontalDivider()
-                Text("잠금 화면 알림으로 오늘 할 일", fontWeight = FontWeight.Bold)
+                Text("잠금 화면에 할 일 표시", fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = lockOn, onCheckedChange = {
                         lockOn = it; Store.setLockOn(ctx, it); LockScreen.update(ctx)
@@ -644,7 +623,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                     Spacer(Modifier.width(10.dp))
                     Text(if (lockOn) "켜짐" else "꺼짐")
                 }
-                Text("오늘 남은 할 일을 알림으로 계속 띄워 두고, 잠금 화면에서도 보여요. 제목이 가려지면 폰 설정 → 알림 → 잠금 화면 알림을 '모든 내용 표시'로 바꿔 주세요. 보고 있는 달력(위쪽 이름)의 할 일이에요.", fontSize = 12.sp)
+                Text("기본으로 켜져 있어요. 오늘 할 일과 '언젠가 할 일'을 잠금 화면 알림으로 보여 줘요. 끄면 표시하지 않아요.", fontSize = 12.sp)
                 HorizontalDivider()
                 Text("홈 화면 달력 위젯", fontWeight = FontWeight.Bold)
                 Text("홈 화면 빈 곳을 길게 누르기 → 위젯 → '나비 할 일 주간'(한 주의 날짜별 할 일 제목) 또는 '나비 할 일 달력'(월간)을 추가하세요. 줄을 누르면 그날 할 일이 열리고, ‹ › 로 주·달을 넘길 수 있어요.", fontSize = 12.sp)

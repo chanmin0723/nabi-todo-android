@@ -139,7 +139,6 @@ object Scheduler {
         NabiWidget.refresh(ctx)
         NabiWeekWidget.refresh(ctx)
         LockScreen.update(ctx)
-        LockWallpaper.update(ctx)
     }
 
     /** 자정 직후에 날짜가 넘어간 것을 위젯·잠금 화면에 반영 */
