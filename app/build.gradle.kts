@@ -40,7 +40,8 @@ android {
     flavorDimensions += "dist"
     productFlavors {
         create("direct") { dimension = "dist" }
-        create("store") { dimension = "dist" }
+        // Play Console에 등록된 패키지 이름(앱 만들 때 정해져 바꿀 수 없음)
+        create("store") { dimension = "dist"; applicationId = "daily_nabi.myapp" }
     }
 
     // Play 업로드 키: CI가 환경변수로 넘겨 줄 때만 사용(키 파일은 저장소에 두지 않음)
