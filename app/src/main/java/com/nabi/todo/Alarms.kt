@@ -347,7 +347,7 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
 /**
  * 15분마다 "지금 보고 있는 달력"의 최신 일정을 받아 잠금 화면 알림과 위젯을 맞춥니다.
- * (웹이나 친구 폰에서 고친 내용은 앱이 꺼져 있으면 이 주기로만 반영돼요. 즉시 반영은 알림의 새로고침 버튼)
+ * (앱이 꺼져 있으면 이 주기로 반영돼요)
  */
 class LiveSyncWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
     override fun doWork(): Result {
@@ -369,7 +369,7 @@ class LiveSyncWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, param
     }
 }
 
-/** 잠금 화면 알림의 "새로고침" 버튼 */
+/** 잠금 화면 새로고침 요청 수신 */
 class RefreshReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         LockScreen.update(ctx)

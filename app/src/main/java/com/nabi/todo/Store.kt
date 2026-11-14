@@ -63,6 +63,8 @@ object Store {
     fun widgetWeek(ctx: Context): Int = sp(ctx).getInt("wWeek", 0)
     fun setWidgetWeek(ctx: Context, v: Int) = sp(ctx).edit().putInt("wWeek", v).apply()
 
+    fun lockWpHash(ctx: Context): Int = sp(ctx).getInt("lockWpHash", 0)
+    fun setLockWpHash(ctx: Context, v: Int) = sp(ctx).edit().putInt("lockWpHash", v).apply()
     fun lockStatus(ctx: Context): String = sp(ctx).getString("lockStatus", "") ?: ""
     fun setLockStatus(ctx: Context, v: String) = sp(ctx).edit().putString("lockStatus", v).apply()
 

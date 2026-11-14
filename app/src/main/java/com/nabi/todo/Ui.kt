@@ -702,14 +702,17 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                 Text("잠금 화면에 할 일 표시", fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = lockOn, onCheckedChange = {
-                        lockOn = it; Store.setLockOn(ctx, it); LockScreen.update(ctx)
+                        lockOn = it; Store.setLockOn(ctx, it); LockScreen.update(ctx); lockInfo = LockScreen.diagnose(ctx)
                     })
                     Spacer(Modifier.width(10.dp))
                     Text(if (lockOn) "켜짐" else "꺼짐")
                 }
-                Text("기본으로 켜져 있어요. 오늘 할 일과 '언젠가 할 일'을 잠금 화면 알림으로 보여 줘요. 끄면 표시하지 않아요.", fontSize = 12.sp)
+                Text("기본으로 켜져 있어요. 잠금 화면 배경을 오늘 할 일(위)과 '언젠가 할 일'(아래)이 그려진 그림으로 바꾸고, 할 일이 바뀔 때마다 새로 그려요. 줄이 많으면 위쪽 몇 개만 보여요. 끄면 더 이상 바꾸지 않아요(원래 사진은 폰의 배경화면 설정에서 다시 고르세요).", fontSize = 12.sp)
                 Text(lockInfo, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedButton(onClick = { LockScreen.update(ctx); lockInfo = LockScreen.diagnose(ctx) }) { Text("지금 알림 다시 띄우기", fontSize = 12.sp) }
+                OutlinedButton(onClick = {
+                    lockInfo = "적용 중…"
+                    scope.launch(Dispatchers.IO) { LockWallpaper.applyNow(ctx, true); lockInfo = LockScreen.diagnose(ctx) }
+                }) { Text("지금 잠금 화면에 적용", fontSize = 12.sp) }
                 HorizontalDivider()
                 Text("홈 화면 달력 위젯", fontWeight = FontWeight.Bold)
                 Text("홈 화면 빈 곳을 길게 누르기 → 위젯 → '나비 할 일 주간'(한 주의 날짜별 할 일 제목) 또는 '나비 할 일 달력'(월간)을 추가하세요. 줄을 누르면 그날 할 일이 열리고, ‹ › 로 주·달을 넘길 수 있어요.", fontSize = 12.sp)

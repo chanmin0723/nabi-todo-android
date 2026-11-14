@@ -31,136 +31,24 @@ internal fun activeTasks(ctx: Context): Pair<CalRef?, List<Task>> {
     return cal to (cal?.let { Store.loadTasks(ctx, it.cid) } ?: emptyList())
 }
 
-/** 잠금 화면 알림: 오늘 할 일 + (따로) 날짜 없는 "언젠가 할 일". 설정에서 끌 수 있고 기본은 켜짐 */
+/** 잠금 화면 표시 담당: 배경 그림 갱신(설정에서 끌 수 있고 기본은 켜짐). 예전 알림 방식은 걷어냅니다. */
 object LockScreen {
-    const val ID = 7_000_020
-    const val ID_LATER = 7_000_021
-    private const val MAX_LINES = 6
-
-    fun ensureChannel(ctx: Context) {
-        val nm = ctx.getSystemService(NotificationManager::class.java)
-        val ch = NotificationChannel(CH_LOCK, "잠금 화면 할 일", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "잠금 화면에 오늘 할 일과 언젠가 할 일을 보여 줘요"
-            setSound(null, null)
-            enableVibration(false)
-            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            setShowBadge(false)
-        }
-        nm.createNotificationChannel(ch)
-    }
-
-    private var catBmp: Bitmap? = null
-
-    /** 알림 큰 아이콘: 고양이 그림을 정사각형 투명 캔버스 가운데에 맞춥니다 */
-    private fun cat(ctx: Context): Bitmap? {
-        catBmp?.let { return it }
-        return try {
-            val src = BitmapFactory.decodeResource(ctx.resources, R.drawable.nabi_cat) ?: return null
-            val size = 256
-            val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-            val w = size * 0.94f
-            val h = w * src.height / src.width
-            Canvas(out).drawBitmap(src, null, android.graphics.RectF((size - w) / 2, (size - h) / 2, (size + w) / 2, (size + h) / 2), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
-            src.recycle()
-            catBmp = out
-            out
-        } catch (e: Throwable) {
-            null
-        }
-    }
-
-    private fun mark(p: Int) = when { p >= 2 -> "🔴"; p == 1 -> "🟠"; else -> "🔵" }
-
-    private fun line(t: Task) = mark(t.priority) + " " + (if (t.time.isNotEmpty()) t.time + " " else "") + t.title
-
-    private fun build(ctx: Context, title: String, lines: List<String>, sub: String?, sortKey: String): Notification {
-        val style = NotificationCompat.InboxStyle()
-        lines.take(MAX_LINES).forEach { style.addLine(it) }
-        if (lines.size > MAX_LINES) style.addLine("… 외 ${lines.size - MAX_LINES}개")
-        val b = NotificationCompat.Builder(ctx, CH_LOCK)
-            .setSmallIcon(R.drawable.ic_notif)
-            .setContentTitle(title)
-            .setContentText(lines.firstOrNull() ?: "수고했어요")
-            .setStyle(style) // 알림을 아래로 당기면 펼쳐지고, 다시 당기면 접혀요
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setShowWhen(false)
-            .setSortKey(sortKey)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setSilent(true)
-            .setContentIntent(Notifier.openApp(ctx))
-        if (sub != null) b.setSubText(sub)
-        cat(ctx)?.let { b.setLargeIcon(it) }
-        val rpi = PendingIntent.getBroadcast(
-            ctx, 7_000_030, Intent(ctx, RefreshReceiver::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        b.addAction(0, "새로고침", rpi)
-        return b.build()
-    }
+    private const val OLD_ID = 7_000_020
+    private const val OLD_ID_LATER = 7_000_021
 
     fun update(ctx: Context) {
         try {
-            doUpdate(ctx)
+            val nm = NotificationManagerCompat.from(ctx)
+            nm.cancel(OLD_ID); nm.cancel(OLD_ID_LATER) // 이전 버전의 잠금 화면 알림 정리
         } catch (e: Throwable) {
-            Store.setLockStatus(ctx, "오류로 표시하지 못했어요: " + (e.message ?: e.javaClass.simpleName))
         }
-    }
-
-    private fun doUpdate(ctx: Context) {
-        val nm = NotificationManagerCompat.from(ctx)
-        val stamp = java.time.LocalTime.now().let { String.format("%02d:%02d", it.hour, it.minute) }
-        if (!Store.lockOn(ctx)) {
-            nm.cancel(ID); nm.cancel(ID_LATER)
-            Store.setLockStatus(ctx, "꺼짐 ($stamp)")
-            return
-        }
-        ensureChannel(ctx)
-        val (cal, tasks) = activeTasks(ctx)
-        val today = LocalDate.now()
-
-        val list = tasksOnDay(tasks, today)
-        if (list.isEmpty()) {
-            nm.cancel(ID)
-        } else {
-            val undone = list.filter { !it.isDone(today) }
-            val title = if (undone.isEmpty()) "오늘 할 일을 모두 끝냈어요 🎉" else "오늘 할 일 ${undone.size}개 남음 (전체 ${list.size})"
-            Notifier.show(ctx, ID, build(ctx, title, undone.map { line(it) }, cal?.name, "a"))
-        }
-
-        val later = tasks.filter { it.date == null && !it.isDone(today) }
-            .sortedWith(compareByDescending<Task> { it.priority }.thenBy { it.order })
-        if (later.isEmpty()) {
-            nm.cancel(ID_LATER)
-        } else {
-            Notifier.show(ctx, ID_LATER, build(ctx, "언젠가 할 일 ${later.size}개", later.map { mark(it.priority) + " " + it.title }, null, "b"))
-        }
-        Store.setLockStatus(
-            ctx,
-            when {
-                cal == null -> "참여한 달력이 없어요 ($stamp)"
-                list.isEmpty() && later.isEmpty() -> "'${cal.name}' 달력에 오늘 할 일과 언젠가 할 일이 없어서 알림을 띄우지 않았어요 ($stamp)"
-                else -> "'${cal.name}' 달력 기준으로 올렸어요: 오늘 ${list.size}개, 언젠가 ${later.size}개 ($stamp)"
-            }
-        )
+        LockWallpaper.update(ctx)
     }
 
     /** 설정 화면에 보여 줄 점검 결과 */
     fun diagnose(ctx: Context): String {
-        val sb = StringBuilder()
-        val nmc = NotificationManagerCompat.from(ctx)
-        sb.append("앱 알림 권한: ").append(if (nmc.areNotificationsEnabled()) "허용" else "꺼짐(폰 설정에서 허용 필요)").append('\n')
-        val ch = ctx.getSystemService(NotificationManager::class.java).getNotificationChannel(CH_LOCK)
-        sb.append("잠금 화면 할 일 채널: ")
-            .append(when {
-                ch == null -> "아직 없음"
-                ch.importance == NotificationManager.IMPORTANCE_NONE -> "꺼짐(폰 설정에서 켜야 해요)"
-                else -> "켜짐(중요도 ${ch.importance})"
-            }).append('\n')
         val st = Store.lockStatus(ctx)
-        sb.append("마지막 결과: ").append(if (st.isEmpty()) "아직 실행 전" else st)
-        return sb.toString()
+        return "마지막 결과: " + if (st.isEmpty()) "아직 실행 전" else st
     }
 }
 
