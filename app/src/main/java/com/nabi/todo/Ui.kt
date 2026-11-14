@@ -12,6 +12,9 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -153,7 +156,8 @@ fun MainScreen(vm: MainViewModel) {
     val msg by vm.msg.collectAsStateWithLifecycle()
     val tabReset by vm.tabReset.collectAsStateWithLifecycle()
 
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(0) } // 0 달력, 1 일, 2 나중에
+    var month by remember { mutableStateOf(java.time.YearMonth.from(vm.date.value)) }
     var editing by remember { mutableStateOf<EditTarget?>(null) }
     var showJoin by remember { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
@@ -161,7 +165,8 @@ fun MainScreen(vm: MainViewModel) {
     var nudgeTarget by remember { mutableStateOf<Task?>(null) }
     val snack = remember { SnackbarHostState() }
 
-    LaunchedEffect(tabReset) { tab = 0 }
+    LaunchedEffect(tabReset) { if (tabReset > 0) tab = 1 } // 위젯·알림에서 날짜로 들어오면 그날 보기
+    LaunchedEffect(date) { month = java.time.YearMonth.from(date) }
     LaunchedEffect(msg) {
         val m = msg
         if (m != null) {
@@ -191,7 +196,7 @@ fun MainScreen(vm: MainViewModel) {
         floatingActionButton = {
             if (active != null) {
                 FloatingActionButton(
-                    onClick = { editing = EditTarget(null, if (tab == 0) date else date) },
+                    onClick = { editing = EditTarget(null, date) },
                     containerColor = Orange, contentColor = Ink,
                 ) { Icon(Icons.Default.Add, "새 할 일") }
             }
@@ -202,14 +207,21 @@ fun MainScreen(vm: MainViewModel) {
                 EmptyState(onJoin = { showJoin = true }, onCreate = { showCreate = true })
             } else {
                 TabRow(selectedTabIndex = tab, containerColor = Color.Transparent) {
-                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("일", fontWeight = FontWeight.Bold) })
-                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("나중에", fontWeight = FontWeight.Bold) })
+                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("달력", fontWeight = FontWeight.Bold) })
+                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("일", fontWeight = FontWeight.Bold) })
+                    Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("나중에", fontWeight = FontWeight.Bold) })
                 }
                 if (status.isNotEmpty()) {
                     Text(status, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 }
                 if (tab == 0) {
+                    MonthView(
+                        tasks = tasks, month = month,
+                        onMonth = { month = it },
+                        onPickDay = { vm.setDate(it); tab = 1 },
+                    )
+                } else if (tab == 1) {
                     DayView(
                         tasks = tasks, groups = groups, date = date,
                         onDate = { vm.setDate(it) },
@@ -237,7 +249,7 @@ fun MainScreen(vm: MainViewModel) {
             onDelete = { e.task?.let { vm.delete(it) }; editing = null },
             onSkip = { e.task?.let { vm.skipDay(it, e.date) }; editing = null },
             onDismiss = { editing = null },
-            laterMode = tab == 1,
+            laterMode = tab == 2,
         )
     }
     val nt = nudgeTarget
@@ -303,6 +315,79 @@ private fun EmptyState(onJoin: () -> Unit, onCreate: () -> Unit) {
         Button(onClick = onJoin, modifier = Modifier.fillMaxWidth()) { Text("공유 코드·링크로 참여", fontWeight = FontWeight.Bold) }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth()) { Text("새 달력 만들기") }
+    }
+}
+
+/** 월간 달력: 다 끝낸 날은 색이 칠해지고 고양이가 나타나며, 남은 일이 있으면 숫자가 보입니다 */
+@Composable
+private fun MonthView(tasks: List<Task>, month: java.time.YearMonth, onMonth: (java.time.YearMonth) -> Unit, onPickDay: (LocalDate) -> Unit) {
+    val today = LocalDate.now()
+    val first = month.atDay(1)
+    val lead = first.dayOfWeek.value % 7 // 일요일 시작
+    val start = first.minusDays(lead.toLong())
+    val weeks = (lead + month.lengthOfMonth() + 6) / 7
+    Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { onMonth(month.minusMonths(1)) }) { Icon(Icons.Default.ChevronLeft, "이전 달") }
+            Text("${month.year}년 ${month.monthValue}월", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = Ink,
+                modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            IconButton(onClick = { onMonth(month.plusMonths(1)) }) { Icon(Icons.Default.ChevronRight, "다음 달") }
+            if (month != java.time.YearMonth.from(today)) TextButton(onClick = { onMonth(java.time.YearMonth.from(today)) }) { Text("오늘", fontWeight = FontWeight.Bold) }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            "일월화수목금토".forEachIndexed { i, ch ->
+                Text(ch.toString(), modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                    color = when (i) { 0 -> Color(0xFFD9534F); 6 -> Color(0xFF5B84D6); else -> MaterialTheme.colorScheme.onSurfaceVariant })
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        for (w in 0 until weeks) {
+            Row(Modifier.fillMaxWidth()) {
+                for (c in 0 until 7) {
+                    val d = start.plusDays((w * 7 + c).toLong())
+                    val inMonth = d.monthValue == month.monthValue
+                    val onDay = tasks.filter { it.occursOn(d) }
+                    val undone = onDay.count { !it.isDone(d) }
+                    val allDone = onDay.isNotEmpty() && undone == 0
+                    val shape = RoundedCornerShape(12.dp)
+                    Box(
+                        Modifier.weight(1f).aspectRatio(0.78f).padding(2.dp).clip(shape)
+                            .background(if (allDone) Color(0xFFDDF3E8) else MaterialTheme.colorScheme.surface)
+                            .then(if (d == today) Modifier.border(2.dp, Orange, shape) else Modifier)
+                            .clickable { onPickDay(d) },
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                d.dayOfMonth.toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                modifier = Modifier.padding(top = 4.dp),
+                                color = when {
+                                    !inMonth -> Color(0xFFB5B7CC)
+                                    c == 0 -> Color(0xFFD9534F)
+                                    c == 6 -> Color(0xFF5B84D6)
+                                    else -> Ink
+                                },
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            if (allDone) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(R.drawable.nabi_cat),
+                                    contentDescription = "다 했어요",
+                                    modifier = Modifier.fillMaxWidth(0.82f),
+                                )
+                            } else if (undone > 0) {
+                                Box(Modifier.size(22.dp).clip(CircleShape).background(Orange), contentAlignment = Alignment.Center) {
+                                    Text(if (undone > 9) "9+" else undone.toString(), fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = Ink)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("날짜를 누르면 그날 할 일이 열려요.  🟠 숫자 = 남은 할 일  ·  고양이 = 모두 끝!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -388,7 +473,7 @@ private fun TaskRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
-            Box(Modifier.width(6.dp).fillMaxHeight().background(if (done) Color(0xFFC9CAD8) else prioColor(t.priority)))
+            Box(Modifier.width(8.dp).fillMaxHeight().background((if (g != null) Color(g.color) else Orange).copy(alpha = if (done) 0.35f else 1f)))
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
             Checkbox(checked = done, onCheckedChange = { onToggle() })
             Column(Modifier.weight(1f).padding(top = 10.dp, end = 4.dp)) {
@@ -401,12 +486,6 @@ private fun TaskRow(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                     Text(prioName(t.priority), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (done) Color(0xFF9A9BB0) else prioColor(t.priority))
                     Spacer(Modifier.width(10.dp))
-                    if (g != null) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(g.color)))
-                        Spacer(Modifier.width(5.dp))
-                        Text(g.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(10.dp))
-                    }
                     if (showDate && t.date != null) {
                         Text(LocalDate.parse(t.date).format(DATE_FMT), fontSize = 12.sp, color = Color(0xFFD9534F))
                         Spacer(Modifier.width(10.dp))

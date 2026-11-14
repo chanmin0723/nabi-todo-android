@@ -9,6 +9,9 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.net.Uri
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -46,6 +49,26 @@ object LockScreen {
         nm.createNotificationChannel(ch)
     }
 
+    private var catBmp: Bitmap? = null
+
+    /** 알림 큰 아이콘: 고양이 그림을 정사각형 투명 캔버스 가운데에 맞춥니다 */
+    private fun cat(ctx: Context): Bitmap? {
+        catBmp?.let { return it }
+        return try {
+            val src = BitmapFactory.decodeResource(ctx.resources, R.drawable.nabi_cat) ?: return null
+            val size = 256
+            val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val w = size * 0.94f
+            val h = w * src.height / src.width
+            Canvas(out).drawBitmap(src, null, android.graphics.RectF((size - w) / 2, (size - h) / 2, (size + w) / 2, (size + h) / 2), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            src.recycle()
+            catBmp = out
+            out
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
     private fun mark(p: Int) = when { p >= 2 -> "🔴"; p == 1 -> "🟠"; else -> "🔵" }
 
     private fun line(t: Task) = mark(t.priority) + " " + (if (t.time.isNotEmpty()) t.time + " " else "") + t.title
@@ -68,6 +91,7 @@ object LockScreen {
             .setSilent(true)
             .setContentIntent(Notifier.openApp(ctx))
         if (sub != null) b.setSubText(sub)
+        cat(ctx)?.let { b.setLargeIcon(it) }
         return b.build()
     }
 
