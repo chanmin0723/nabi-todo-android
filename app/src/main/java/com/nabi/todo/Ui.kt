@@ -685,6 +685,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
     val scope = rememberCoroutineScope()
     var myName by remember { mutableStateOf(Store.myName(ctx)) }
     var lockOn by remember { mutableStateOf(Store.lockOn(ctx)) }
+    var lockInfo by remember { mutableStateOf(LockScreen.diagnose(ctx)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("설정", fontWeight = FontWeight.ExtraBold) },
@@ -707,6 +708,8 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                     Text(if (lockOn) "켜짐" else "꺼짐")
                 }
                 Text("기본으로 켜져 있어요. 오늘 할 일과 '언젠가 할 일'을 잠금 화면 알림으로 보여 줘요. 끄면 표시하지 않아요.", fontSize = 12.sp)
+                Text(lockInfo, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = { LockScreen.update(ctx); lockInfo = LockScreen.diagnose(ctx) }) { Text("지금 알림 다시 띄우기", fontSize = 12.sp) }
                 HorizontalDivider()
                 Text("홈 화면 달력 위젯", fontWeight = FontWeight.Bold)
                 Text("홈 화면 빈 곳을 길게 누르기 → 위젯 → '나비 할 일 주간'(한 주의 날짜별 할 일 제목) 또는 '나비 할 일 달력'(월간)을 추가하세요. 줄을 누르면 그날 할 일이 열리고, ‹ › 로 주·달을 넘길 수 있어요.", fontSize = 12.sp)

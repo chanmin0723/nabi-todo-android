@@ -101,9 +101,19 @@ object LockScreen {
     }
 
     fun update(ctx: Context) {
+        try {
+            doUpdate(ctx)
+        } catch (e: Throwable) {
+            Store.setLockStatus(ctx, "오류로 표시하지 못했어요: " + (e.message ?: e.javaClass.simpleName))
+        }
+    }
+
+    private fun doUpdate(ctx: Context) {
         val nm = NotificationManagerCompat.from(ctx)
+        val stamp = java.time.LocalTime.now().let { String.format("%02d:%02d", it.hour, it.minute) }
         if (!Store.lockOn(ctx)) {
             nm.cancel(ID); nm.cancel(ID_LATER)
+            Store.setLockStatus(ctx, "꺼짐 ($stamp)")
             return
         }
         ensureChannel(ctx)
@@ -126,6 +136,31 @@ object LockScreen {
         } else {
             Notifier.show(ctx, ID_LATER, build(ctx, "언젠가 할 일 ${later.size}개", later.map { mark(it.priority) + " " + it.title }, null, "b"))
         }
+        Store.setLockStatus(
+            ctx,
+            when {
+                cal == null -> "참여한 달력이 없어요 ($stamp)"
+                list.isEmpty() && later.isEmpty() -> "'${cal.name}' 달력에 오늘 할 일과 언젠가 할 일이 없어서 알림을 띄우지 않았어요 ($stamp)"
+                else -> "'${cal.name}' 달력 기준으로 올렸어요: 오늘 ${list.size}개, 언젠가 ${later.size}개 ($stamp)"
+            }
+        )
+    }
+
+    /** 설정 화면에 보여 줄 점검 결과 */
+    fun diagnose(ctx: Context): String {
+        val sb = StringBuilder()
+        val nmc = NotificationManagerCompat.from(ctx)
+        sb.append("앱 알림 권한: ").append(if (nmc.areNotificationsEnabled()) "허용" else "꺼짐(폰 설정에서 허용 필요)").append('\n')
+        val ch = ctx.getSystemService(NotificationManager::class.java).getNotificationChannel(CH_LOCK)
+        sb.append("잠금 화면 할 일 채널: ")
+            .append(when {
+                ch == null -> "아직 없음"
+                ch.importance == NotificationManager.IMPORTANCE_NONE -> "꺼짐(폰 설정에서 켜야 해요)"
+                else -> "켜짐(중요도 ${ch.importance})"
+            }).append('\n')
+        val st = Store.lockStatus(ctx)
+        sb.append("마지막 결과: ").append(if (st.isEmpty()) "아직 실행 전" else st)
+        return sb.toString()
     }
 }
 

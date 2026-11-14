@@ -63,6 +63,9 @@ object Store {
     fun widgetWeek(ctx: Context): Int = sp(ctx).getInt("wWeek", 0)
     fun setWidgetWeek(ctx: Context, v: Int) = sp(ctx).edit().putInt("wWeek", v).apply()
 
+    fun lockStatus(ctx: Context): String = sp(ctx).getString("lockStatus", "") ?: ""
+    fun setLockStatus(ctx: Context, v: String) = sp(ctx).edit().putString("lockStatus", v).apply()
+
     fun lockOn(ctx: Context): Boolean = sp(ctx).getBoolean("lockOn", true)
     fun setLockOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("lockOn", v).apply()
     /** 위젯이 보여 주는 달: 이번 달 기준 +- 개월 */
