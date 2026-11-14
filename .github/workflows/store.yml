@@ -4,6 +4,9 @@ name: Build Play Store bundle
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   bundle:
     runs-on: ubuntu-latest
@@ -33,3 +36,12 @@ jobs:
         with:
           name: nabi-todo-store-aab
           path: app/build/outputs/bundle/storeRelease/*.aab
+      # 다운로드가 안 되는 환경을 위해 릴리스에도 올림(자동 업데이트용 "최신 릴리스"에는 영향 없음)
+      - name: Attach AAB to a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="store-1.0.${GITHUB_RUN_NUMBER}"
+          cp app/build/outputs/bundle/storeRelease/*.aab nabi-todo-store.aab
+          gh release create "$TAG" nabi-todo-store.aab --prerelease --latest=false \
+            --title "Play AAB 1.0.${GITHUB_RUN_NUMBER}" --notes "Play Console 업로드용 AAB (스마트폰에 설치하는 파일이 아닙니다)"
