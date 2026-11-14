@@ -92,6 +92,11 @@ object LockScreen {
             .setContentIntent(Notifier.openApp(ctx))
         if (sub != null) b.setSubText(sub)
         cat(ctx)?.let { b.setLargeIcon(it) }
+        val rpi = PendingIntent.getBroadcast(
+            ctx, 7_000_030, Intent(ctx, RefreshReceiver::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        b.addAction(0, "새로고침", rpi)
         return b.build()
     }
 

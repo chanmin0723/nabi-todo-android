@@ -26,6 +26,11 @@ class NabiApp : Application() {
         val req = PeriodicWorkRequestBuilder<SyncWorker>(6, TimeUnit.HOURS).build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork("nabi-sync", ExistingPeriodicWorkPolicy.KEEP, req)
         Updater.schedule(this)
+        // 잠금 화면·위젯을 15분마다 최신 일정으로 맞춤
+        val live = PeriodicWorkRequestBuilder<LiveSyncWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork("nabi-live", ExistingPeriodicWorkPolicy.KEEP, live)
         val nreq = PeriodicWorkRequestBuilder<NudgeWorker>(15, TimeUnit.MINUTES)
             .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
             .build()

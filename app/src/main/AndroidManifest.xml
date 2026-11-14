@@ -26,6 +26,7 @@
             </intent-filter>
         </activity>
 
+        <receiver android:name=".RefreshReceiver" android:exported="false" />
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".NabiWeekWidget" android:exported="true" android:label="나비 할 일 주간">
             <intent-filter>
