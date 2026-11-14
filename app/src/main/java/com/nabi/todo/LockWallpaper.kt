@@ -36,7 +36,7 @@ object LockWallpaper {
     fun applyNow(ctx: Context, force: Boolean = true) {
         try {
             val wm = WallpaperManager.getInstance(ctx)
-            if (!wm.isWallpaperSettingSupported || !wm.isSetWallpaperAllowed) {
+            if (!wm.isWallpaperSupported || !wm.isSetWallpaperAllowed) {
                 Store.setLockStatus(ctx, "이 폰에서는 앱이 배경화면을 바꿀 수 없어요 (${stamp()})")
                 return
             }
