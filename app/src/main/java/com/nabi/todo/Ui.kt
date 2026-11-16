@@ -686,6 +686,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
     var myName by remember { mutableStateOf(Store.myName(ctx)) }
     var lockOn by remember { mutableStateOf(Store.lockOn(ctx)) }
     var lockInfo by remember { mutableStateOf(LockScreen.diagnose(ctx)) }
+    var lockStyle by remember { mutableIntStateOf(Store.lockStyle(ctx)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("설정", fontWeight = FontWeight.ExtraBold) },
@@ -708,6 +709,16 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                     Text(if (lockOn) "켜짐" else "꺼짐")
                 }
                 Text("기본으로 켜져 있어요. 잠금 화면 배경을 오늘 할 일(위)과 '언젠가 할 일'(아래)이 그려진 그림으로 바꾸고, 할 일이 바뀔 때마다 새로 그려요. 줄이 많으면 위쪽 몇 개만 보여요. 끄면 더 이상 바꾸지 않아요(원래 사진은 폰의 배경화면 설정에서 다시 고르세요).", fontSize = 12.sp)
+                Text("내 폰의 잠금 화면 알림 스타일 (폰 설정 → 잠금화면 → 알림 스타일)", fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0 to "아이콘·점", 1 to "카드").forEach { (v, label) ->
+                        FilterChip(selected = lockStyle == v, onClick = {
+                            lockStyle = v; Store.setLockStyle(ctx, v)
+                            scope.launch(Dispatchers.IO) { LockWallpaper.applyNow(ctx, true); lockInfo = LockScreen.diagnose(ctx) }
+                        }, label = { Text(label) })
+                    }
+                }
+                Text("카드로 쓰는 폰은 알림 카드가 화면 가운데를 덮어서, 할 일을 맨 아래에 크게 그려요.", fontSize = 12.sp)
                 Text(lockInfo, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(onClick = {
                     lockInfo = "적용 중…"

@@ -63,6 +63,9 @@ object Store {
     fun widgetWeek(ctx: Context): Int = sp(ctx).getInt("wWeek", 0)
     fun setWidgetWeek(ctx: Context, v: Int) = sp(ctx).edit().putInt("wWeek", v).apply()
 
+    /** 0 = 아이콘/점 스타일(기본), 1 = 카드 스타일 — 폰의 잠금 화면 알림 스타일에 맞춰 배치가 달라짐 */
+    fun lockStyle(ctx: Context): Int = sp(ctx).getInt("lockStyle", 0)
+    fun setLockStyle(ctx: Context, v: Int) = sp(ctx).edit().putInt("lockStyle", v).apply()
     fun lockWpHash(ctx: Context): Int = sp(ctx).getInt("lockWpHash", 0)
     fun setLockWpHash(ctx: Context, v: Int) = sp(ctx).edit().putInt("lockWpHash", v).apply()
     fun lockStatus(ctx: Context): String = sp(ctx).getString("lockStatus", "") ?: ""

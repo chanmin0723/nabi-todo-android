@@ -52,14 +52,15 @@ object LockWallpaper {
         val list = tasksOnDay(tasks, today)
         val later = tasks.filter { it.date == null && !it.isDone(today) }
             .sortedWith(compareByDescending<Task> { it.priority }.thenBy { it.order })
-        val sig = today.toString() + "|" + (cal?.name ?: "") + "|" +
+        val style = Store.lockStyle(ctx)
+        val sig = style.toString() + "|" + today.toString() + "|" + (cal?.name ?: "") + "|" +
             list.joinToString(";") { "${it.id}:${it.title}:${it.time}:${it.priority}:${it.isDone(today)}" } + "|" +
             later.joinToString(";") { "${it.id}:${it.title}:${it.priority}" }
         val h = sig.hashCode()
         if (!force && h == Store.lockWpHash(ctx)) return
 
         val dm = ctx.resources.displayMetrics
-        val bmp = draw(ctx, dm.widthPixels, dm.heightPixels, cal?.name ?: "", today, list, later)
+        val bmp = draw(ctx, dm.widthPixels, dm.heightPixels, cal?.name ?: "", today, list, later, style == 1)
         try {
             wm.setBitmap(bmp, null, true, WallpaperManager.FLAG_LOCK)
             Store.setLockWpHash(ctx, h)
@@ -75,10 +76,12 @@ object LockWallpaper {
 
     private fun prio(p: Int) = when { p >= 2 -> Color.parseColor("#D9534F"); p == 1 -> Color.parseColor("#E8920F"); else -> Color.parseColor("#5B84D6") }
 
-    private fun draw(ctx: Context, w: Int, h: Int, calName: String, today: LocalDate, list: List<Task>, later: List<Task>): Bitmap {
+    private fun draw(ctx: Context, w: Int, h: Int, calName: String, today: LocalDate, list: List<Task>, later: List<Task>, card: Boolean): Bitmap {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val u = w / 1080f
+        // 카드 스타일: 알림 카드가 화면 가운데를 덮으므로 맨 아래에 더 크게 그림
+        val k = if (card) 1.2f else 1f
 
         val bgP = Paint().apply {
             shader = LinearGradient(0f, 0f, 0f, h.toFloat(), Color.parseColor("#DCE6FF"), Color.parseColor("#FFE6CF"), Shader.TileMode.CLAMP)
@@ -89,31 +92,34 @@ object LockWallpaper {
         val doneCount = list.size - undone.size
 
         val ink = Color.parseColor("#2B2A4C")
-        val title = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = 54 * u; typeface = Typeface.DEFAULT_BOLD }
-        val sub = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#5B5A80"); textSize = 36 * u }
-        val item = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = 44 * u; typeface = Typeface.DEFAULT_BOLD }
+        val title = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = 54 * u * k; typeface = Typeface.DEFAULT_BOLD }
+        val sub = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#5B5A80"); textSize = 36 * u * k }
+        val item = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; textSize = 44 * u * k; typeface = Typeface.DEFAULT_BOLD }
         val boxP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 5 * u }
         val cardP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(226, 255, 255, 255) }
 
         val cardL = 48 * u
         val cardR = w - 48 * u
         val padX = 52 * u
-        val rowH = 70 * u
-        val head1 = 150 * u
-        val head2 = 96 * u
+        val rowH = 70 * u * k
+        val head1 = 150 * u * k
+        val head2 = 96 * u * k
         val padB = 36 * u
         val gap = 30 * u
-        val top = h * 0.40f
-        val bottomLimit = h * 0.86f
+        var top = if (card) h * 0.55f else h * 0.40f
+        val bottomLimit = if (card) h * 0.87f else h * 0.86f
 
         var tRows = minOf(undone.size, 6)
         var lRows = minOf(later.size, 4)
         fun extra(total: Int, shown: Int) = if (total > shown) 1 else 0
         fun h1(): Float = head1 + (maxOf(tRows, 1) + extra(undone.size, tRows)) * rowH + (if (doneCount > 0 && undone.isNotEmpty()) rowH * 0.8f else 0f) + padB
         fun h2(): Float = if (later.isEmpty()) 0f else gap + head2 + (lRows + extra(later.size, lRows)) * rowH + padB
-        while (top + h1() + h2() > bottomLimit && (lRows > 2 || tRows > 3)) {
-            if (lRows > 2) lRows-- else tRows--
+        val minL = if (card) 1 else 2
+        val minT = if (card) 2 else 3
+        while (top + h1() + h2() > bottomLimit && (lRows > minL || tRows > minT)) {
+            if (lRows > minL) lRows-- else tRows--
         }
+        if (card) top = maxOf(h * 0.50f, bottomLimit - (h1() + h2())) // 맨 아래에 붙임
 
         val maxW = cardR - cardL - padX * 2
 
