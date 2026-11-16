@@ -40,6 +40,21 @@ object Repo {
             cb(d?.get("name") as? String, groupsFromAny(d?.get("groups")), snap.exists())
         }
 
+    /** 그룹(이름·색) 저장: 웹과 같은 groups 배열 */
+    fun saveGroups(cid: String, groups: List<Group>): GmsTask<Void> {
+        val arr = groups.map {
+            mapOf("id" to it.id, "name" to it.name, "color" to String.format("#%06X", it.color and 0xFFFFFFL), "icon" to it.icon)
+        }
+        return calDoc(cid).set(mapOf<String, Any?>("groups" to arr), SetOptions.merge())
+    }
+
+    /** 달력 문서 1개만 보면서 새 콕이 왔는지 알려 줌 */
+    fun listenLastNudge(cid: String, cb: (Long) -> Unit): ListenerRegistration =
+        calDoc(cid).addSnapshotListener { snap, _ ->
+            if (snap == null || !snap.exists()) return@addSnapshotListener
+            cb((snap.get("lastNudge") as? Number)?.toLong() ?: 0L)
+        }
+
     fun listenTasks(
         cid: String,
         cb: (tasks: List<Task>, fromCache: Boolean) -> Unit,

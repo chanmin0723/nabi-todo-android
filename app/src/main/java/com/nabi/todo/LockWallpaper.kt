@@ -32,6 +32,41 @@ object LockWallpaper {
         exec.execute { applyNow(app, force) }
     }
 
+    /** 끄거나 알림 방식으로 바꿀 때: 이 앱이 바꾼 적이 있으면 기본 잠금 화면으로 되돌림 */
+    fun restoreDefault(ctx: Context) {
+        if (!Store.lockApplied(ctx)) return
+        val app = ctx.applicationContext
+        exec.execute { restoreNow(app) }
+    }
+
+    private fun restoreNow(ctx: Context) {
+        try {
+            val wm = WallpaperManager.getInstance(ctx)
+            if (!wm.isWallpaperSupported || !wm.isSetWallpaperAllowed) {
+                Store.setLockStatus(ctx, "이 폰에서는 앱이 배경화면을 바꿀 수 없어요. 폰 설정에서 직접 바꿔 주세요 (${stamp()})")
+                return
+            }
+            try {
+                wm.clear(WallpaperManager.FLAG_LOCK) // 시스템 기본 잠금 화면으로
+                Store.setLockStatus(ctx, "기본 잠금 화면으로 되돌렸어요 (${stamp()})")
+            } catch (e: Throwable) {
+                val dm = ctx.resources.displayMetrics
+                val bmp = Bitmap.createBitmap(dm.widthPixels, dm.heightPixels, Bitmap.Config.ARGB_8888)
+                bmp.eraseColor(Color.WHITE)
+                try {
+                    wm.setBitmap(bmp, null, true, WallpaperManager.FLAG_LOCK)
+                    Store.setLockStatus(ctx, "기본으로 되돌리지 못해 흰 배경으로 바꿨어요 (${stamp()})")
+                } finally {
+                    bmp.recycle()
+                }
+            }
+            Store.setLockApplied(ctx, false)
+            Store.setLockWpHash(ctx, 0)
+        } catch (e: Throwable) {
+            Store.setLockStatus(ctx, "되돌리지 못했어요: " + (e.message ?: e.javaClass.simpleName) + " (${stamp()})")
+        }
+    }
+
     /** 바로 그려서 적용(백그라운드 스레드에서 호출). 결과는 설정 화면의 "마지막 결과"에 남습니다. */
     fun applyNow(ctx: Context, force: Boolean = true) {
         try {
@@ -64,6 +99,7 @@ object LockWallpaper {
         try {
             wm.setBitmap(bmp, null, true, WallpaperManager.FLAG_LOCK)
             Store.setLockWpHash(ctx, h)
+            Store.setLockApplied(ctx, true)
             Store.setLockStatus(
                 ctx,
                 if (cal == null) "참여한 달력이 없어서 빈 배경을 그렸어요 (${stamp()})"

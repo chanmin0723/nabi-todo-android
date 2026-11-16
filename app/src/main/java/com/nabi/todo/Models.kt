@@ -32,7 +32,7 @@ data class Task(
     val nudges: Map<String, Nudge> = emptyMap(), // 날짜 -> 보낸 알림(하루 한 번)
 )
 
-data class Group(val id: String, val name: String, val color: Long)
+data class Group(val id: String, val name: String, val color: Long, val icon: String = "cat")
 
 data class CalRef(val cid: String, val name: String)
 
@@ -239,7 +239,7 @@ fun groupsFromAny(v: Any?): List<Group> {
             } catch (ex: Exception) {
                 0xFFF4A259L
             }
-            out.add(Group(id, (m["name"] as? String) ?: "", c))
+            out.add(Group(id, (m["name"] as? String) ?: "", c, (m["icon"] as? String) ?: "cat"))
         }
     }
     return if (out.isEmpty()) DEFAULT_GROUPS else out

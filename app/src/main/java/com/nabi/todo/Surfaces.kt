@@ -113,9 +113,11 @@ object LockScreen {
     fun update(ctx: Context) {
         if (!Store.lockOn(ctx)) {
             cancelNotifs(ctx)
+            LockWallpaper.restoreDefault(ctx)
             return
         }
         if (Store.lockStyle(ctx) == 1) {
+            LockWallpaper.restoreDefault(ctx) // 배경 방식에서 카드 방식으로 바꾼 경우 배경을 되돌림
             try {
                 notifyNow(ctx)
             } catch (e: Throwable) {

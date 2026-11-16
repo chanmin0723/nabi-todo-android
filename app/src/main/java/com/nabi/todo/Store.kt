@@ -68,6 +68,9 @@ object Store {
     fun setLockStyle(ctx: Context, v: Int) = sp(ctx).edit().putInt("lockStyle", v).apply()
     fun lockWpHash(ctx: Context): Int = sp(ctx).getInt("lockWpHash", 0)
     fun setLockWpHash(ctx: Context, v: Int) = sp(ctx).edit().putInt("lockWpHash", v).apply()
+    /** 이 앱이 잠금 화면 배경을 바꾼 적이 있는지(끌 때 되돌리기 위해) */
+    fun lockApplied(ctx: Context): Boolean = sp(ctx).getBoolean("lockApplied", false)
+    fun setLockApplied(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("lockApplied", v).apply()
     fun lockStatus(ctx: Context): String = sp(ctx).getString("lockStatus", "") ?: ""
     fun setLockStatus(ctx: Context, v: String) = sp(ctx).edit().putString("lockStatus", v).apply()
 

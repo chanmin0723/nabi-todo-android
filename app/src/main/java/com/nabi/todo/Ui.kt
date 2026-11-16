@@ -93,6 +93,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 
@@ -155,8 +156,15 @@ fun MainScreen(vm: MainViewModel) {
     val date by vm.date.collectAsStateWithLifecycle()
     val msg by vm.msg.collectAsStateWithLifecycle()
     val tabReset by vm.tabReset.collectAsStateWithLifecycle()
+    val peekCid by vm.peekCid.collectAsStateWithLifecycle()
+    val peekTasks by vm.peekTasks.collectAsStateWithLifecycle()
+    val peekGroups by vm.peekGroups.collectAsStateWithLifecycle()
 
-    var tab by remember { mutableIntStateOf(0) } // 0 달력, 1 일, 2 나중에
+    var tab by remember { mutableIntStateOf(0) } // 0 달력, 1 일, 2 나중에, 3 친구
+    var groupFilter by remember { mutableStateOf<String?>(null) } // null = 전체 그룹
+    var showGroups by remember { mutableStateOf(false) }
+    var nudgeCid by remember { mutableStateOf<String?>(null) }
+    var peekDate by remember { mutableStateOf(LocalDate.now()) }
     var month by remember { mutableStateOf(java.time.YearMonth.from(vm.date.value)) }
     var editing by remember { mutableStateOf<EditTarget?>(null) }
     var showJoin by remember { mutableStateOf(false) }
@@ -167,6 +175,10 @@ fun MainScreen(vm: MainViewModel) {
 
     LaunchedEffect(tabReset) { if (tabReset > 0) tab = 1 } // 위젯·알림에서 날짜로 들어오면 그날 보기
     LaunchedEffect(date) { month = java.time.YearMonth.from(date) }
+    LaunchedEffect(active) { groupFilter = null }
+    LaunchedEffect(tab) { if (tab != 3) vm.peek(null) }
+    BackHandler(enabled = tab == 3 && peekCid != null) { vm.peek(null) }
+    val shown = remember(tasks, groupFilter) { if (groupFilter == null) tasks else tasks.filter { it.groupId == groupFilter } }
     LaunchedEffect(msg) {
         val m = msg
         if (m != null) {
@@ -180,12 +192,16 @@ fun MainScreen(vm: MainViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    CalendarMenu(
-                        cals = cals, activeCid = active,
-                        onSelect = { vm.select(it) },
-                        onJoin = { showJoin = true },
-                        onCreate = { showCreate = true },
-                    )
+                    if (tab == 3) {
+                        Text("친구", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                    } else {
+                        GroupMenu(
+                            groups = groups, calName = cals.find { it.cid == active }?.name,
+                            selected = groupFilter,
+                            onSelect = { groupFilter = it },
+                            onEdit = { showGroups = true },
+                        )
+                    }
                 },
                 actions = {
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "설정") }
@@ -194,7 +210,7 @@ fun MainScreen(vm: MainViewModel) {
         },
         snackbarHost = { SnackbarHost(snack) },
         floatingActionButton = {
-            if (active != null) {
+            if (active != null && tab != 3) {
                 FloatingActionButton(
                     onClick = { editing = EditTarget(null, date) },
                     containerColor = Orange, contentColor = Ink,
@@ -210,6 +226,7 @@ fun MainScreen(vm: MainViewModel) {
                     Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("달력", fontWeight = FontWeight.Bold) })
                     Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("일", fontWeight = FontWeight.Bold) })
                     Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("나중에", fontWeight = FontWeight.Bold) })
+                    Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("친구", fontWeight = FontWeight.Bold) })
                 }
                 if (status.isNotEmpty()) {
                     Text(status, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -217,25 +234,49 @@ fun MainScreen(vm: MainViewModel) {
                 }
                 if (tab == 0) {
                     MonthView(
-                        tasks = tasks, month = month,
+                        tasks = shown, month = month,
                         onMonth = { month = it },
                         onPickDay = { vm.setDate(it); tab = 1 },
                     )
                 } else if (tab == 1) {
                     DayView(
-                        tasks = tasks, groups = groups, date = date,
+                        tasks = shown, groups = groups, date = date,
                         onDate = { vm.setDate(it) },
                         onToggle = { t, d -> vm.toggle(t, d) },
                         onSub = { t, d, sid -> vm.toggleSub(t, d, sid) },
                         onEdit = { t, d -> editing = EditTarget(t, d) },
-                        onNudge = { t -> nudgeTarget = t },
+                        onNudge = { t -> nudgeCid = null; nudgeTarget = t },
                     )
-                } else {
+                } else if (tab == 2) {
                     LaterView(
-                        tasks = tasks, groups = groups,
+                        tasks = shown, groups = groups,
                         onToggle = { t -> vm.toggle(t, LocalDate.now()) },
                         onEdit = { t -> editing = EditTarget(t, LocalDate.now()) },
                     )
+                } else {
+                    val pc = peekCid
+                    if (pc == null) {
+                        FriendsTab(
+                            cals = cals, activeCid = active,
+                            onPeek = { peekDate = LocalDate.now(); vm.peek(it) },
+                            onOpen = { vm.select(it); tab = 0 },
+                            onJoin = { showJoin = true },
+                            onCreate = { showCreate = true },
+                        )
+                    } else {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { vm.peek(null) }) { Icon(Icons.Default.ChevronLeft, "목록으로") }
+                            Text(cals.find { it.cid == pc }?.name ?: "친구 달력", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                            if (pc != active) TextButton(onClick = { vm.select(pc); tab = 0 }) { Text("이 달력으로 열기", fontWeight = FontWeight.Bold) }
+                        }
+                        DayView(
+                            tasks = peekTasks, groups = peekGroups, date = peekDate,
+                            onDate = { peekDate = it },
+                            onToggle = { _, _ -> }, onSub = { _, _, _ -> }, onEdit = { _, _ -> },
+                            onNudge = { t -> nudgeCid = pc; nudgeTarget = t },
+                            readOnly = true,
+                        )
+                    }
                 }
             }
         }
@@ -250,6 +291,7 @@ fun MainScreen(vm: MainViewModel) {
             onSkip = { e.task?.let { vm.skipDay(it, e.date) }; editing = null },
             onDismiss = { editing = null },
             laterMode = tab == 2,
+            defaultGroup = groupFilter,
         )
     }
     val nt = nudgeTarget
@@ -258,11 +300,12 @@ fun MainScreen(vm: MainViewModel) {
             onDismissRequest = { nudgeTarget = null },
             title = { Text("콕 찌를까요?", fontWeight = FontWeight.ExtraBold) },
             text = { Text("'${nt.title}' 하라고 이 달력을 쓰는 상대 폰에 알림을 보내요.\n할 일 하나당 하루에 한 번만 보낼 수 있어요.") },
-            confirmButton = { TextButton(onClick = { vm.nudge(nt); nudgeTarget = null }) { Text("보내기", fontWeight = FontWeight.ExtraBold) } },
+            confirmButton = { TextButton(onClick = { vm.nudge(nt, nudgeCid); nudgeTarget = null }) { Text("보내기", fontWeight = FontWeight.ExtraBold) } },
             dismissButton = { TextButton(onClick = { nudgeTarget = null }) { Text("취소") } },
         )
     }
     if (showJoin) JoinDialog(onDismiss = { showJoin = false }, onJoin = { raw, done -> vm.join(raw) { ok -> done(ok); if (ok) showJoin = false } })
+    if (showGroups) GroupEditDialog(groups = groups, onSave = { vm.saveGroups(it); showGroups = false }, onDismiss = { showGroups = false })
     if (showCreate) CreateDialog(onDismiss = { showCreate = false }, onCreate = { name -> vm.create(name) { showCreate = false } })
     if (showSettings) {
         SettingsDialog(
@@ -274,28 +317,129 @@ fun MainScreen(vm: MainViewModel) {
 }
 
 @Composable
-private fun CalendarMenu(
-    cals: List<CalRef>, activeCid: String?,
-    onSelect: (String) -> Unit, onJoin: () -> Unit, onCreate: () -> Unit,
+private fun GroupMenu(
+    groups: List<Group>, calName: String?, selected: String?,
+    onSelect: (String?) -> Unit, onEdit: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val sel = groups.find { it.id == selected }
     Box {
-        Row(Modifier.clickable { open = true }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(cals.find { it.cid == activeCid }?.name ?: "나비 할 일", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
-            Icon(Icons.Default.ArrowDropDown, null)
+        Column(Modifier.clickable { open = true }.padding(vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (sel != null) {
+                    Box(Modifier.size(12.dp).clip(CircleShape).background(Color(sel.color)))
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(sel?.name ?: "전체 그룹", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                Icon(Icons.Default.ArrowDropDown, null)
+            }
+            if (!calName.isNullOrEmpty()) Text(calName, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            cals.forEach { c ->
+            DropdownMenuItem(
+                text = { Text("전체 그룹", fontWeight = if (selected == null) FontWeight.Bold else FontWeight.Normal) },
+                onClick = { open = false; onSelect(null) },
+            )
+            groups.forEach { g ->
                 DropdownMenuItem(
-                    text = { Text(c.name, fontWeight = if (c.cid == activeCid) FontWeight.Bold else FontWeight.Normal) },
-                    onClick = { open = false; onSelect(c.cid) },
+                    leadingIcon = { Box(Modifier.size(12.dp).clip(CircleShape).background(Color(g.color))) },
+                    text = { Text(g.name, fontWeight = if (g.id == selected) FontWeight.Bold else FontWeight.Normal) },
+                    onClick = { open = false; onSelect(g.id) },
                 )
             }
-            if (cals.isNotEmpty()) HorizontalDivider()
-            DropdownMenuItem(text = { Text("공유 달력 참여 (코드·링크)") }, onClick = { open = false; onJoin() })
-            DropdownMenuItem(text = { Text("새 달력 만들기") }, onClick = { open = false; onCreate() })
+            HorizontalDivider()
+            DropdownMenuItem(text = { Text("그룹 추가·이름·색 바꾸기") }, onClick = { open = false; onEdit() })
         }
     }
+}
+
+/** 참여한 달력(친구 달력) 목록: 구경하고 콕 찌르기, 코드로 추가 */
+@Composable
+private fun FriendsTab(
+    cals: List<CalRef>, activeCid: String?,
+    onPeek: (String) -> Unit, onOpen: (String) -> Unit, onJoin: () -> Unit, onCreate: () -> Unit,
+) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp, 12.dp, 16.dp, 32.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item {
+            Text("친구 달력의 공유 코드로 참여하면 여기에 모여요. 달력을 눌러 친구의 할 일을 구경하고 '👉 콕'을 보낼 수 있어요.",
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        items(cals, key = { it.cid }) { c ->
+            Card(
+                onClick = { onPeek(c.cid) },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(c.name, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+                        if (c.cid == activeCid) Text("지금 보고 있는 내 달력", fontSize = 12.sp, color = Orange, fontWeight = FontWeight.Bold)
+                        else Text("눌러서 구경하고 콕 보내기", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (c.cid != activeCid) {
+                        TextButton(onClick = { onOpen(c.cid) }) { Text("내 달력으로", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+        item {
+            Button(onClick = onJoin, modifier = Modifier.fillMaxWidth()) { Text("친구 달력 추가 (코드·링크)", fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth()) { Text("새 달력 만들기") }
+        }
+    }
+}
+
+private val GROUP_COLORS = listOf(
+    0xFFF4A259, 0xFF7AA7F0, 0xFFF2C94C, 0xFFA98BEA, 0xFFE5707E, 0xFF5FBF8F, 0xFF4FB3C8, 0xFF9AA0B5,
+)
+
+/** 그룹 추가·이름 바꾸기·색 바꾸기·삭제 */
+@Composable
+private fun GroupEditDialog(groups: List<Group>, onSave: (List<Group>) -> Unit, onDismiss: () -> Unit) {
+    val list = remember { mutableStateListOf<Group>().also { it.addAll(groups) } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("그룹 편집", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                list.forEachIndexed { i, g ->
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = g.name, onValueChange = { list[i] = g.copy(name = it) },
+                                singleLine = true, modifier = Modifier.weight(1f), placeholder = { Text("그룹 이름") },
+                            )
+                            IconButton(enabled = list.size > 1, onClick = { list.removeAt(i) }) { Icon(Icons.Default.Close, "그룹 삭제") }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                            GROUP_COLORS.forEach { c ->
+                                Box(
+                                    Modifier.size(26.dp).clip(CircleShape).background(Color(c))
+                                        .border(if (g.color == c) 3.dp else 0.dp, Ink, CircleShape)
+                                        .clickable { list[i] = g.copy(color = c) },
+                                )
+                            }
+                        }
+                    }
+                }
+                OutlinedButton(onClick = { list.add(Group(newId(), "", GROUP_COLORS[list.size % GROUP_COLORS.size])) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("+ 그룹 추가")
+                }
+                Text("그룹을 지우면 그 그룹의 할 일은 첫 번째 그룹 색으로 보여요. 이 달력을 쓰는 모두에게 바뀌어요.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(list.mapIndexed { i, g -> if (g.name.isBlank()) g.copy(name = "그룹 ${i + 1}") else g.copy(name = g.name.trim()) })
+            }) { Text("저장", fontWeight = FontWeight.ExtraBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
 }
 
 @Composable
@@ -399,6 +543,7 @@ private fun DayView(
     onSub: (Task, LocalDate, String) -> Unit,
     onEdit: (Task, LocalDate) -> Unit,
     onNudge: (Task) -> Unit,
+    readOnly: Boolean = false,
 ) {
     val ctx = LocalContext.current
     val today = LocalDate.now()
@@ -433,13 +578,13 @@ private fun DayView(
             items(overdue, key = { "o:" + it.id }) { t ->
                 val d = LocalDate.parse(t.date!!)
                 TaskRow(t, d, groups, showDate = true, onToggle = { onToggle(t, d) }, onSub = { sid -> onSub(t, d, sid) }, onClick = { onEdit(t, d) },
-                    nudgeable = true, onNudge = { onNudge(t) })
+                    nudgeable = true, onNudge = { onNudge(t) }, readOnly = readOnly)
             }
             item { Text("오늘", fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 8.dp)) }
         }
         items(dayTasks, key = { "d:" + it.id }) { t ->
             TaskRow(t, date, groups, showDate = false, onToggle = { onToggle(t, date) }, onSub = { sid -> onSub(t, date, sid) }, onClick = { onEdit(t, date) },
-                nudgeable = date == today, onNudge = { onNudge(t) })
+                nudgeable = date == today, onNudge = { onNudge(t) }, readOnly = readOnly)
         }
     }
 }
@@ -462,7 +607,7 @@ private fun LaterView(tasks: List<Task>, groups: List<Group>, onToggle: (Task) -
 private fun TaskRow(
     t: Task, d: LocalDate, groups: List<Group>, showDate: Boolean,
     onToggle: () -> Unit, onSub: (String) -> Unit, onClick: () -> Unit,
-    nudgeable: Boolean = false, onNudge: () -> Unit = {},
+    nudgeable: Boolean = false, onNudge: () -> Unit = {}, readOnly: Boolean = false,
 ) {
     val done = t.isDone(d)
     val nudgedToday = t.nudges.containsKey(LocalDate.now().toString())
@@ -475,7 +620,7 @@ private fun TaskRow(
         Row(Modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
             Box(Modifier.width(8.dp).fillMaxHeight().background((if (g != null) Color(g.color) else Orange).copy(alpha = if (done) 0.35f else 1f)))
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
-            Checkbox(checked = done, onCheckedChange = { onToggle() })
+            Checkbox(checked = done, onCheckedChange = { onToggle() }, enabled = !readOnly)
             Column(Modifier.weight(1f).padding(top = 10.dp, end = 4.dp)) {
                 Text(
                     t.title,
@@ -497,8 +642,8 @@ private fun TaskRow(
                     if (t.isRep()) Text("↻ " + (REPEAT_LABELS.find { it.first == t.repeat }?.second ?: ""), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 t.subs.forEach { s ->
-                    Row(Modifier.clickable { onSub(s.id) }, verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = t.subOn(d, s.id), onCheckedChange = { onSub(s.id) }, modifier = Modifier.size(36.dp))
+                    Row(Modifier.clickable(enabled = !readOnly) { onSub(s.id) }, verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = t.subOn(d, s.id), onCheckedChange = { onSub(s.id) }, enabled = !readOnly, modifier = Modifier.size(36.dp))
                         Text(s.t, fontSize = 14.sp)
                     }
                 }
@@ -539,6 +684,7 @@ private fun EditDialog(
     target: EditTarget, groups: List<Group>,
     onSave: (Draft) -> Unit, onDelete: () -> Unit, onSkip: () -> Unit, onDismiss: () -> Unit,
     laterMode: Boolean,
+    defaultGroup: String? = null,
 ) {
     val ctx = LocalContext.current
     val orig = target.task
@@ -546,7 +692,7 @@ private fun EditDialog(
     var note by remember { mutableStateOf(orig?.note ?: "") }
     var date by remember { mutableStateOf(if (orig != null) orig.date else if (laterMode) null else target.date.toString()) }
     var time by remember { mutableStateOf(orig?.time ?: "") }
-    var groupId by remember { mutableStateOf(orig?.groupId ?: groups.firstOrNull()?.id ?: "g1") }
+    var groupId by remember { mutableStateOf(orig?.groupId ?: defaultGroup ?: groups.firstOrNull()?.id ?: "g1") }
     var priority by remember { mutableIntStateOf(orig?.priority ?: 0) }
     var repeat by remember { mutableStateOf(orig?.repeat ?: "none") }
     var remind by remember { mutableIntStateOf(orig?.remind ?: -1) }
@@ -708,7 +854,7 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                     Spacer(Modifier.width(10.dp))
                     Text(if (lockOn) "켜짐" else "꺼짐")
                 }
-                Text("기본으로 켜져 있어요. 잠금 화면 배경을 오늘 할 일(위)과 '언젠가 할 일'(아래)이 그려진 그림으로 바꾸고, 할 일이 바뀔 때마다 새로 그려요. 줄이 많으면 위쪽 몇 개만 보여요. 끄면 더 이상 바꾸지 않아요(원래 사진은 폰의 배경화면 설정에서 다시 고르세요).", fontSize = 12.sp)
+                Text("기본으로 켜져 있어요. 잠금 화면 배경을 오늘 할 일(위)과 '언젠가 할 일'(아래)이 그려진 그림으로 바꾸고, 할 일이 바뀔 때마다 새로 그려요. 줄이 많으면 위쪽 몇 개만 보여요. 끄면 기본 잠금 화면으로 되돌려요(되돌리지 못하는 폰에서는 흰 배경으로 바꿔요).", fontSize = 12.sp)
                 Text("내 폰의 잠금 화면 알림 스타일 (폰 설정 → 잠금화면 → 알림 스타일)", fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0 to "아이콘·점", 1 to "카드").forEach { (v, label) ->

@@ -2,6 +2,9 @@ package com.nabi.todo
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +45,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _tabReset = MutableStateFlow(0)
     val tabReset: StateFlow<Int> = _tabReset.asStateFlow()
 
+    // 친구 탭에서 구경 중인 달력
+    private val _peekCid = MutableStateFlow<String?>(null)
+    val peekCid: StateFlow<String?> = _peekCid.asStateFlow()
+    private val _peekTasks = MutableStateFlow<List<Task>>(emptyList())
+    val peekTasks: StateFlow<List<Task>> = _peekTasks.asStateFlow()
+    private val _peekGroups = MutableStateFlow(DEFAULT_GROUPS)
+    val peekGroups: StateFlow<List<Group>> = _peekGroups.asStateFlow()
+    private var regPeekCal: ListenerRegistration? = null
+    private var regPeekTasks: ListenerRegistration? = null
+
+    // 보고 있지 않은 달력에서도 콕이 오면 알림을 띄우기 위한 감시(달력 문서 1개씩만 읽음)
+    private val nudgeWatch = HashMap<String, ListenerRegistration>()
+
     private var regCal: ListenerRegistration? = null
     private var regTasks: ListenerRegistration? = null
 
@@ -58,12 +74,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun openDay(d: LocalDate) { _date.value = d; _tabReset.value = _tabReset.value + 1 }
     fun refreshToday() { if (_date.value.isBefore(LocalDate.now().minusDays(400))) _date.value = LocalDate.now() }
 
+    fun peek(cid: String?) {
+        regPeekCal?.remove(); regPeekTasks?.remove()
+        regPeekCal = null; regPeekTasks = null
+        _peekCid.value = cid
+        _peekTasks.value = emptyList()
+        _peekGroups.value = DEFAULT_GROUPS
+        if (cid == null) return
+        _peekTasks.value = Store.loadTasks(ctx, cid)
+        regPeekCal = Repo.listenCal(cid) { _, groups, exists -> if (exists) _peekGroups.value = groups }
+        regPeekTasks = Repo.listenTasks(cid, { list, fromCache ->
+            if (!(fromCache && list.isEmpty())) _peekTasks.value = list
+        }, { })
+    }
+
+    private fun syncNudgeWatch() {
+        val want = _cals.value.map { it.cid }.toSet() - setOfNotNull(_active.value)
+        nudgeWatch.keys.filter { it !in want }.forEach { nudgeWatch.remove(it)?.remove() }
+        for (cid in want) {
+            if (nudgeWatch.containsKey(cid)) continue
+            nudgeWatch[cid] = Repo.listenLastNudge(cid) { last ->
+                if (last > Store.lastNudgeSeen(ctx, cid)) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        val list = Repo.fetchTasksBlocking(cid) ?: return@launch
+                        Store.saveTasks(ctx, cid, list)
+                        Nudges.processIncoming(ctx, cid, list)
+                        Store.setLastNudgeSeen(ctx, cid, last)
+                    }
+                }
+            }
+        }
+    }
+
+    fun saveGroups(groups: List<Group>) {
+        val cid = _active.value ?: return
+        _groups.value = groups
+        Repo.saveGroups(cid, groups).addOnFailureListener { toast("그룹을 저장하지 못했어요. 연결되면 다시 시도해 주세요.") }
+    }
+
     fun select(cid: String?) {
         regCal?.remove(); regTasks?.remove()
         regCal = null; regTasks = null
         _active.value = cid
         Store.setActive(ctx, cid)
         _groups.value = DEFAULT_GROUPS
+        syncNudgeWatch()
         if (cid == null) {
             _tasks.value = emptyList()
             _status.value = ""
@@ -134,7 +189,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _cals.value = list
         Store.saveCals(ctx, list)
         Store.dropCal(ctx, cid)
-        if (_active.value == cid) select(list.firstOrNull()?.cid)
+        if (_peekCid.value == cid) peek(null)
+        if (_active.value == cid) select(list.firstOrNull()?.cid) else syncNudgeWatch()
         Scheduler.rescheduleAll(ctx)
     }
 
@@ -168,8 +224,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 이 할 일을 하라고 상대에게 알림 보내기(할 일당 하루 한 번) */
-    fun nudge(t: Task) {
-        val cid = _active.value ?: return
+    fun nudge(t: Task, calId: String? = null) {
+        val cid = calId ?: _active.value ?: return
         val day = LocalDate.now().toString()
         if (t.nudges.containsKey(day)) { toast("오늘은 이미 보낸 할 일이에요."); return }
         val rec = mapOf<String, Any?>(
@@ -214,5 +270,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         regCal?.remove(); regTasks?.remove()
+        regPeekCal?.remove(); regPeekTasks?.remove()
+        nudgeWatch.values.forEach { it.remove() }
     }
 }
