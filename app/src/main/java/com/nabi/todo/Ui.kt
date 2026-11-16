@@ -714,15 +714,15 @@ private fun SettingsDialog(activeCal: CalRef?, onLeave: (String) -> Unit, onDism
                     listOf(0 to "아이콘·점", 1 to "카드").forEach { (v, label) ->
                         FilterChip(selected = lockStyle == v, onClick = {
                             lockStyle = v; Store.setLockStyle(ctx, v)
-                            scope.launch(Dispatchers.IO) { LockWallpaper.applyNow(ctx, true); lockInfo = LockScreen.diagnose(ctx) }
+                            scope.launch(Dispatchers.IO) { LockScreen.applyNow(ctx); lockInfo = LockScreen.diagnose(ctx) }
                         }, label = { Text(label) })
                     }
                 }
-                Text("카드로 쓰는 폰은 알림 카드가 화면 가운데를 덮어서, 할 일을 맨 아래에 크게 그려요.", fontSize = 12.sp)
+                Text("카드를 고르면 배경은 바꾸지 않고, 할 일이 알림 카드 목록의 맨 아래에 크게 나와요. (폰 설정에서 이 앱의 알림이 허용되어 있어야 해요)", fontSize = 12.sp)
                 Text(lockInfo, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(onClick = {
                     lockInfo = "적용 중…"
-                    scope.launch(Dispatchers.IO) { LockWallpaper.applyNow(ctx, true); lockInfo = LockScreen.diagnose(ctx) }
+                    scope.launch(Dispatchers.IO) { LockScreen.applyNow(ctx); lockInfo = LockScreen.diagnose(ctx) }
                 }) { Text("지금 잠금 화면에 적용", fontSize = 12.sp) }
                 HorizontalDivider()
                 Text("홈 화면 달력 위젯", fontWeight = FontWeight.Bold)

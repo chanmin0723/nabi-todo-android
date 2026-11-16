@@ -27,7 +27,7 @@ object LockWallpaper {
     private fun stamp(): String = LocalTime.now().let { String.format("%02d:%02d", it.hour, it.minute) }
 
     fun update(ctx: Context, force: Boolean = false) {
-        if (!Store.lockOn(ctx)) return
+        if (!Store.lockOn(ctx) || Store.lockStyle(ctx) == 1) return
         val app = ctx.applicationContext
         exec.execute { applyNow(app, force) }
     }
